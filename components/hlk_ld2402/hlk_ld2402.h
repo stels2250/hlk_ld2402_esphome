@@ -16,17 +16,14 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   void loop() override;
   void dump_config() override;
   
-  void test_get_version();
-  void test_raw_tx(const std::vector<uint8_t> &data);
-  void dump_hex(const std::vector<uint8_t> &data, const char* prefix);
-
   void set_distance_sensor(sensor::Sensor *distance_sensor) { distance_sensor_ = distance_sensor; }
+  void set_distance_in_cm(bool in_cm) { distance_in_cm_ = in_cm; }
 
  protected:
-  std::vector<uint8_t> buffer_;
   std::string line_buffer_;
   void process_line_(const std::string &line);
   sensor::Sensor *distance_sensor_{nullptr};
+  bool distance_in_cm_{true};  // Default to cm as per datasheet
 };
 
 }  // namespace hlk_ld2402

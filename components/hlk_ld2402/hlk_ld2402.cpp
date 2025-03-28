@@ -35,9 +35,12 @@ void HLKLD2402Component::process_line_(const std::string &line) {
     
     if (end != distance_str.c_str() && *end == '\0') {  // Successful conversion
       if (this->distance_sensor_ != nullptr) {
-        this->distance_sensor_->publish_state(distance / 100.0f);  // Convert to meters
+        if (!distance_in_cm_) {
+          distance = distance / 100.0f;  // Convert to meters if needed
+        }
+        this->distance_sensor_->publish_state(distance);
       }
-      ESP_LOGD(TAG, "Distance: %.2f m", distance / 100.0f);
+      ESP_LOGD(TAG, "Distance: %.2f %s", distance, distance_in_cm_ ? "cm" : "m");
     } else {
       ESP_LOGW(TAG, "Invalid distance value: %s", distance_str.c_str());
     }
@@ -46,34 +49,7 @@ void HLKLD2402Component::process_line_(const std::string &line) {
 
 void HLKLD2402Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HLK-LD2402:");
-}
-
-void HLKLD2402Component::dump_hex(const std::vector<uint8_t> &data, const char* prefix) {
-  std::string hex;
-  for (uint8_t b : data) {
-    char buf[4];
-    sprintf(buf, "%02X ", b);
-    hex += buf;
-  }
-  ESP_LOGI(TAG, "%s: %s", prefix, hex.c_str());
-}
-
-void HLKLD2402Component::test_raw_tx(const std::vector<uint8_t> &data) {
-  ESP_LOGI(TAG, "Sending raw data (%d bytes):", data.size());
-  dump_hex(data, "TX");
-  write_array(data.data(), data.size());
-}
-
-void HLKLD2402Component::test_get_version() {
-  ESP_LOGI(TAG, "Testing GET_VERSION command");
-  
-  std::vector<uint8_t> frame;
-  frame.insert(frame.end(), {0xFD, 0xFC, 0xFB, 0xFA});  // Header
-  frame.insert(frame.end(), {0x02, 0x00});              // Length
-  frame.insert(frame.end(), {0x00, 0x00});              // Command
-  frame.insert(frame.end(), {0x04, 0x03, 0x02, 0x01});  // Footer
-  
-  test_raw_tx(frame);
+  ESP_LOGCONFIG(TAG, "  Distance unit: %s", distance_in_cm_ ? "cm" : "m");
 }
 
 }  // namespace hlk_ld2402
