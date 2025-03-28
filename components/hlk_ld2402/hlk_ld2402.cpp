@@ -8,6 +8,24 @@ static const char *const TAG = "hlk_ld2402";
 
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
+  
+  this->set_uart_baud_rate(UART_BAUD_RATE);
+  this->set_uart_stop_bits(UART_STOP_BITS);
+  this->set_uart_data_bits(UART_DATA_BITS);
+  this->set_uart_parity(UART_PARITY);
+
+  if (max_distance_ > MAX_THEORETICAL_RANGE) {
+    ESP_LOGW(TAG, "Max distance %.1f exceeds theoretical maximum, clamping to %.1f", 
+             max_distance_, MAX_THEORETICAL_RANGE);
+    max_distance_ = MAX_THEORETICAL_RANGE;
+  }
+
+  if (!this->check_uart_settings(9600)) {
+    ESP_LOGE(TAG, "UART settings incorrect! Please set UART baud rate to 9600");
+    this->mark_failed();
+    return;
+  }
+
   ESP_LOGD(TAG, "Max distance: %.1f m, Timeout: %u s", max_distance_, timeout_);
   
   bool setup_success = false;
@@ -89,17 +107,9 @@ void HLKLD2402Component::loop() {
     read_byte(&c);
     last_byte_time = millis();
     
-    // Log bytes for debugging
-    if (isprint(c)) {
-      ESP_LOGV(TAG, "Received byte: 0x%02X ('%c')", c, c);
-    } else {
-      ESP_LOGV(TAG, "Received byte: 0x%02X", c);
-    }
-    
     if (c == '\n') {
       // Process complete line
       if (!line_buffer_.empty()) {
-        ESP_LOGD(TAG, "Complete line received: '%s'", line_buffer_.c_str());
         process_line_(line_buffer_);
         line_buffer_.clear();
       }
@@ -107,7 +117,6 @@ void HLKLD2402Component::loop() {
       if (line_buffer_.length() < 1024) {
         line_buffer_ += (char)c;
       } else {
-        ESP_LOGW(TAG, "Buffer overflow, clearing");
         line_buffer_.clear();
       }
     }
@@ -115,7 +124,6 @@ void HLKLD2402Component::loop() {
   
   // Reset buffer if no data received for a while
   if (!line_buffer_.empty() && (millis() - last_byte_time > TIMEOUT_MS)) {
-    ESP_LOGW(TAG, "Data timeout, clearing buffer: '%s'", line_buffer_.c_str());
     line_buffer_.clear();
   }
 }
@@ -123,7 +131,15 @@ void HLKLD2402Component::loop() {
 void HLKLD2402Component::process_line_(const std::string &line) {
   ESP_LOGD(TAG, "Processing line: '%s'", line.c_str());
   
-  if (line.compare(0, 9, "distance:") == 0) {
+  if (line == "OFF") {
+    ESP_LOGD(TAG, "No target detected");
+    if (this->presence_binary_sensor_ != nullptr) {
+      this->presence_binary_sensor_->publish_state(false);
+    }
+    if (this->micromovement_binary_sensor_ != nullptr) {
+      this->micromovement_binary_sensor_->publish_state(false);
+    }
+  } else if (line.compare(0, 9, "distance:") == 0) {
     std::string distance_str = line.substr(9);
     // Remove trailing " m" if present
     size_t pos = distance_str.find(" m");
@@ -146,18 +162,17 @@ void HLKLD2402Component::process_line_(const std::string &line) {
         ESP_LOGI(TAG, "Published distance: %.2f cm", distance);
       }
       
+      // For distances under 4m, consider it micromovement detection
+      if (this->micromovement_binary_sensor_ != nullptr) {
+        this->micromovement_binary_sensor_->publish_state(distance <= 400);
+      }
+      
       if (this->presence_binary_sensor_ != nullptr) {
         this->presence_binary_sensor_->publish_state(true);
         ESP_LOGI(TAG, "Published presence: TRUE");
       }
     } else {
       ESP_LOGW(TAG, "Failed to parse distance value: '%s'", distance_str.c_str());
-    }
-  } else if (line == "OFF") {
-    ESP_LOGI(TAG, "Received OFF signal - no target detected");
-    if (this->presence_binary_sensor_ != nullptr) {
-      this->presence_binary_sensor_->publish_state(false);
-      ESP_LOGI(TAG, "Published presence: FALSE");
     }
   } else {
     ESP_LOGW(TAG, "Unknown line format: '%s'", line.c_str());
@@ -169,6 +184,21 @@ void HLKLD2402Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware Version: %s", firmware_version_.c_str());
   ESP_LOGCONFIG(TAG, "  Max Distance: %.1f m", max_distance_);
   ESP_LOGCONFIG(TAG, "  Timeout: %u s", timeout_);
+}
+
+bool HLKLD2402Component::write_frame_(const std::vector<uint8_t> &frame) {
+  size_t written = 0;
+  size_t tries = 0;
+  while (written < frame.size() && tries++ < 3) {
+    size_t to_write = frame.size() - written;
+    size_t ret = write_array(&frame[written], to_write);
+    if (ret == 0) {
+      delay(5);
+      continue;
+    }
+    written += ret;
+  }
+  return written == frame.size();
 }
 
 bool HLKLD2402Component::send_command_(uint16_t command, const uint8_t *data, size_t len) {
@@ -194,10 +224,7 @@ bool HLKLD2402Component::send_command_(uint16_t command, const uint8_t *data, si
   // Footer
   frame.insert(frame.end(), FRAME_FOOTER, FRAME_FOOTER + 4);
   
-  ESP_LOGV(TAG, "Sending command 0x%04X with %d data bytes", command, len);
-  dump_hex_(frame.data(), frame.size(), "TX");
-  
-  return write_array(frame.data(), frame.size());
+  return write_frame_(frame);
 }
 
 bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
@@ -229,8 +256,6 @@ bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
       if (c == FRAME_FOOTER[footer_match]) {
         footer_match++;
         if (footer_match == 4) {
-          dump_hex_(buffer.data(), buffer.size(), "RX");
-          
           // Extract the actual response data (remove header and footer)
           response.assign(buffer.begin() + 4, buffer.end() - 4);
           return true;
@@ -242,14 +267,11 @@ bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
     yield();
   }
   
-  ESP_LOGW(TAG, "Response timeout");
-  if (!buffer.empty()) {
-    dump_hex_(buffer.data(), buffer.size(), "Incomplete RX");
-  }
   return false;
 }
 
 void HLKLD2402Component::dump_hex_(const uint8_t *data, size_t len, const char* prefix) {
+#ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
   char buf[128];
   size_t pos = 0;
   
@@ -258,6 +280,7 @@ void HLKLD2402Component::dump_hex_(const uint8_t *data, size_t len, const char* 
   }
   
   ESP_LOGV(TAG, "%s: %s", prefix, buf);
+#endif
 }
 
 bool HLKLD2402Component::enter_config_mode_() {

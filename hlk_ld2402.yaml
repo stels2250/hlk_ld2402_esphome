@@ -1,32 +1,70 @@
+# Basic configuration 
+esphome:
+  name: radar-ld2402
+  friendly_name: Radar Sensor
+
+esp8266:
+  board: d1_mini
+
+# UART Configuration (from manual)
 uart:
-  tx_pin: GPIO17
-  rx_pin: GPIO16
+  tx_pin: GPIO1  # D10 on ESP8266
+  rx_pin: GPIO3  # D9 on ESP8266
   baud_rate: 115200
   data_bits: 8
   parity: NONE
   stop_bits: 1
 
-logger:
-  level: VERBOSE
-  logs:
-    hlk_ld2402: VERBOSE
-    uart: DEBUG
-
+# HLK-LD2402 configuration
 hlk_ld2402:
   id: radar_sensor
+  max_distance: 5.0  # in meters, default is 5m
+  timeout: 5        # in seconds, default is 5s
 
+# Binary Sensor - Shows if motion/presence is detected
+binary_sensor:
+  - platform: hlk_ld2402
+    name: "Radar Presence"
+    presence:
+      name: "Radar Presence Detection"
+  
+  - platform: hlk_ld2402
+    name: "Radar Micromovement"
+    micromovement:
+      name: "Radar Micromovement Detection"
+
+# Distance Sensor - Shows detected target distance
+sensor:
+  - platform: hlk_ld2402
+    name: "Radar Distance"
+    distance:
+      name: "Target Distance"
+      unit_of_measurement: "cm"
+      accuracy_decimals: 0
+
+# Optional test buttons
 button:
   - platform: template
-    name: "Test Get Version"
+    name: "Radar Calibrate"
     on_press:
       then:
-        - lambda: |-
-            id(radar_sensor).test_get_version();
+        - lambda: id(radar_sensor).calibrate();
 
   - platform: template
-    name: "Test Raw Header"
+    name: "Enable Auto Gain"
     on_press:
       then:
-        - lambda: |-
-            std::vector<uint8_t> test_data = {0xFD, 0xFC, 0xFB, 0xFA};
-            id(radar_sensor).test_raw_tx(test_data);
+        - lambda: id(radar_sensor).enable_auto_gain();
+
+  - platform: template
+    name: "Save Config"
+    on_press:
+      then:
+        - lambda: id(radar_sensor).save_config();
+
+# Optional - set lower log level for production
+logger:
+  level: INFO
+  logs:
+    hlk_ld2402: INFO
+    uart: DEBUG
