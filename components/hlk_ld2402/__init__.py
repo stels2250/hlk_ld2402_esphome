@@ -11,8 +11,8 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     STATE_CLASS_MEASUREMENT,
     UNIT_CENTIMETER,
-    CONF_UNIT_OF_MEASUREMENT,  # Add this import
-    CONF_ACCURACY_DECIMALS,    # Add this import too
+    CONF_UNIT_OF_MEASUREMENT,
+    CONF_ACCURACY_DECIMALS,
 )
 
 DEPENDENCIES = ["uart"]
@@ -23,11 +23,6 @@ HLKLD2402Component = hlk_ld2402_ns.class_(
     "HLKLD2402Component", cg.Component, uart.UARTDevice
 )
 
-# Register the binary_sensor and sensor platform schemas
-# Remove these as they're not needed and cause conflicts
-# sensor.SENSOR_SCHEMA = cv.Schema({}).extend(cv.COMPONENT_SCHEMA)
-# binary_sensor.BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(cv.COMPONENT_SCHEMA)
-
 # Custom configs
 CONF_PRESENCE = "presence"
 CONF_MICROMOVEMENT = "micromovement"
@@ -36,32 +31,12 @@ CONF_TIMEOUT = "timeout"
 CONF_UART_ID = "uart_id"
 CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 
-# Fix sensor schema definitions
-SENSOR_SCHEMA = sensor.sensor_schema(
-    device_class=DEVICE_CLASS_DISTANCE,
-    state_class=STATE_CLASS_MEASUREMENT,
-    unit_of_measurement=UNIT_CENTIMETER,
-    accuracy_decimals=1,
-).extend({
-    cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-})
-
-BINARY_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema(
-    device_class=cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
-).extend({
-    cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-})
-
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
     cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
     cv.Optional(CONF_MAX_DISTANCE, default=5.0): cv.float_range(min=0.7, max=10.0),
     cv.Optional(CONF_TIMEOUT, default=5): cv.int_range(min=0, max=65535),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
-
-# Platform schemas
-sensor.SENSOR_PLATFORM_SCHEMA = SENSOR_SCHEMA
-binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA = BINARY_SENSOR_SCHEMA
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -73,24 +48,13 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-# Replace the @register_platform decorators with these platform registration functions
-@sensor.register_sensor(
-    "hlk_ld2402",
-    SENSOR_PLATFORM_SCHEMA,
-    sensor_to_code,
-)
-@binary_sensor.register_binary_sensor(
-    "hlk_ld2402",
-    BINARY_SENSOR_PLATFORM_SCHEMA,
-    binary_sensor_to_code,
-)
-
-# Move the sensor_to_code and binary_sensor_to_code functions here unchanged
+# Sensor registration
 async def sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await sensor.new_sensor(config)
     cg.add(parent.set_distance_sensor(var))
 
+# Binary sensor registration
 async def binary_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await binary_sensor.new_binary_sensor(config)
@@ -98,3 +62,27 @@ async def binary_sensor_to_code(config):
         cg.add(parent.set_presence_binary_sensor(var))
     elif config[CONF_DEVICE_CLASS] == DEVICE_CLASS_MOTION:
         cg.add(parent.set_micromovement_binary_sensor(var))
+
+# Platform registration
+sensor.register_sensor(
+    "hlk_ld2402",
+    sensor.sensor_schema(
+        device_class=DEVICE_CLASS_DISTANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_CENTIMETER,
+        accuracy_decimals=1,
+    ).extend({
+        cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    }),
+    sensor_to_code,
+)
+
+binary_sensor.register_binary_sensor(
+    "hlk_ld2402",
+    binary_sensor.binary_sensor_schema(
+        device_class=cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
+    ).extend({
+        cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    }),
+    binary_sensor_to_code,
+)
