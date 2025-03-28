@@ -1,47 +1,32 @@
-external_components:
-  - source:
-      type: git
-      url: https://github.com/mouldybread/hlk_ld2402_esphome
-      ref: main  # Must specify a branch
-
 uart:
-  id: uart_bus
-  tx_pin: GPIO1
-  rx_pin: GPIO3
+  tx_pin: GPIO17
+  rx_pin: GPIO16
   baud_rate: 115200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
+
+logger:
+  level: VERBOSE
+  logs:
+    hlk_ld2402: VERBOSE
+    uart: DEBUG
 
 hlk_ld2402:
   id: radar_sensor
-  max_distance: 8.5
-  disappear_delay: 30
 
-sensor:
-  - platform: hlk_ld2402
-    distance:
-      name: "Radar Distance"
-      id: radar_distance_sensor
-      hlk_ld2402_id: radar_sensor
-      filters:
-        - sliding_window_moving_average:
-            window_size: 5
-            send_every: 1
-            send_first_at: 1
+button:
+  - platform: template
+    name: "Test Get Version"
+    on_press:
+      then:
+        - lambda: |-
+            id(radar_sensor).test_get_version();
 
-binary_sensor:
-  - platform: hlk_ld2402
-    name: "Radar Presence"
-    id: radar_presence
-    hlk_ld2402_id: radar_sensor
-    type: presence
-
-  - platform: hlk_ld2402
-    name: "Radar Movement"
-    id: radar_movement
-    hlk_ld2402_id: radar_sensor
-    type: movement
-
-  - platform: hlk_ld2402
-    name: "Radar Micro Movement"
-    id: radar_micromovement
-    hlk_ld2402_id: radar_sensor
-    type: micromovement
+  - platform: template
+    name: "Test Raw Header"
+    on_press:
+      then:
+        - lambda: |-
+            std::vector<uint8_t> test_data = {0xFD, 0xFC, 0xFB, 0xFA};
+            id(radar_sensor).test_raw_tx(test_data);
