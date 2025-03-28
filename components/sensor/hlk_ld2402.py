@@ -10,10 +10,8 @@ from esphome.const import (
 from .. import hlk_ld2402_ns, HLKLD2402Component
 
 DEPENDENCIES = ['hlk_ld2402']
-AUTO_LOAD = ['hlk_ld2402']
 
 CONF_HLK_LD2402_ID = "hlk_ld2402_id"
-CONF_DISTANCE = "distance"
 
 HLKLD2402DistanceSensor = hlk_ld2402_ns.class_(
     "HLKLD2402DistanceSensor",
@@ -21,7 +19,7 @@ HLKLD2402DistanceSensor = hlk_ld2402_ns.class_(
     cg.Component
 )
 
-DISTANCE_SCHEMA = sensor.sensor_schema(
+CONFIG_SCHEMA = sensor.sensor_schema(
     HLKLD2402DistanceSensor,
     unit_of_measurement=UNIT_METER,
     device_class=DEVICE_CLASS_DISTANCE,
@@ -32,15 +30,9 @@ DISTANCE_SCHEMA = sensor.sensor_schema(
     cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
 })
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.Required(CONF_DISTANCE): DISTANCE_SCHEMA,
-})
-
 async def to_code(config):
-    distance_conf = config[CONF_DISTANCE]
-    var = cg.new_Pvariable(distance_conf[CONF_ID])
-    await cg.register_component(var, distance_conf)
-    await sensor.register_sensor(var, distance_conf)
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
     
-    parent = await cg.get_variable(distance_conf[CONF_HLK_LD2402_ID])
+    parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     cg.add(var.set_parent(parent))
