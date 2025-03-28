@@ -1,5 +1,6 @@
 #include "hlk_ld2402.h"
 #include "esphome/core/log.h"
+#include <string>
 
 namespace esphome {
 namespace hlk_ld2402 {
@@ -9,25 +10,41 @@ static const char *const TAG = "hlk_ld2402";
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
   
+  // Wait a bit for the sensor to be ready after power-up
+  delay(100);
+  
+  ESP_LOGD(TAG, "Enabling configuration mode...");
   // Enable configuration mode
   if (!this->enable_configuration_()) {
     ESP_LOGE(TAG, "Failed to enable configuration mode");
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "Configuration mode enabled");
 
+  delay(50);  // Add delay between commands
+
+  ESP_LOGD(TAG, "Starting auto gain calibration...");
   // Auto gain calibration (for firmware v3.3.5+)
   if (!this->auto_gain_calibration_()) {
-    ESP_LOGW(TAG, "Auto gain calibration failed or not supported");
+    ESP_LOGW(TAG, "Auto gain calibration failed or not supported - continuing anyway");
+  } else {
+    ESP_LOGD(TAG, "Auto gain calibration successful");
+    delay(50);
   }
 
+  ESP_LOGD(TAG, "Setting work mode...");
   // Set work mode to engineering mode (0x04)
   if (!this->set_work_mode_(0x04)) {
     ESP_LOGE(TAG, "Failed to set work mode");
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "Work mode set successfully");
 
+  delay(50);
+
+  ESP_LOGD(TAG, "Setting max distance to %.1f m...", this->max_distance_);
   // Set max distance parameter
   std::vector<uint8_t> distance_data = {
       0x01, 0x00,  // Parameter ID for max distance
@@ -38,7 +55,11 @@ void HLKLD2402Component::setup() {
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "Max distance set successfully");
 
+  delay(50);
+
+  ESP_LOGD(TAG, "Setting disappear delay to %u s...", this->disappear_delay_);
   // Set disappear delay parameter
   std::vector<uint8_t> delay_data = {
       0x04, 0x00,  // Parameter ID for disappear delay
@@ -51,25 +72,36 @@ void HLKLD2402Component::setup() {
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "Disappear delay set successfully");
 
+  delay(50);
+
+  ESP_LOGD(TAG, "Saving configuration...");
   // Save parameters
   if (!this->save_configuration_()) {
     ESP_LOGE(TAG, "Failed to save parameters");
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "Configuration saved successfully");
 
+  delay(50);
+
+  ESP_LOGD(TAG, "Disabling configuration mode...");
   // Disable configuration mode
   if (!this->disable_configuration_()) {
     ESP_LOGE(TAG, "Failed to disable configuration mode");
     this->mark_failed();
     return;
   }
+  ESP_LOGD(TAG, "Configuration mode disabled");
 
   if (this->distance_sensor_) this->distance_sensor_->publish_state(NAN);
   if (this->presence_sensor_) this->presence_sensor_->publish_state(false);
   if (this->movement_sensor_) this->movement_sensor_->publish_state(false);
   if (this->micromovement_sensor_) this->micromovement_sensor_->publish_state(false);
+
+  ESP_LOGCONFIG(TAG, "HLK-LD2402 setup complete");
 }
 
 void HLKLD2402Component::loop() {
@@ -118,6 +150,16 @@ bool HLKLD2402Component::send_command_(uint16_t command, const std::vector<uint8
   this->last_command_ = command;
   this->last_command_success_ = false;
   
+  // Log the frame being sent
+  std::string frame_hex;
+  for (uint8_t b : frame) {
+    char hex[3];
+    sprintf(hex, "%02X", b);
+    frame_hex += hex;
+    frame_hex += " ";
+  }
+  ESP_LOGV(TAG, "Sending frame: %s", frame_hex.c_str());
+  
   // Send the frame
   this->write_array(frame);
   
@@ -127,16 +169,25 @@ bool HLKLD2402Component::send_command_(uint16_t command, const std::vector<uint8
 
 bool HLKLD2402Component::wait_for_response_(uint16_t command, uint32_t timeout_ms) {
   uint32_t start = millis();
+  std::string response_hex;
+  
   while ((millis() - start) < timeout_ms) {
     if (available()) {
       uint8_t c;
       read_byte(&c);
       this->buffer_.push_back(c);
+      
+      char hex[3];
+      sprintf(hex, "%02X", c);
+      response_hex += hex;
+      response_hex += " ";
 
       // Check if we have a complete ACK frame
       if (this->buffer_.size() >= 8 && 
           this->check_frame_header_(this->buffer_) &&
           this->check_frame_footer_(this->buffer_, this->buffer_.size() - 4)) {
+        
+        ESP_LOGV(TAG, "Received response: %s", response_hex.c_str());
         
         // Parse ACK frame
         if (this->buffer_.size() >= 6) {
@@ -146,8 +197,13 @@ bool HLKLD2402Component::wait_for_response_(uint16_t command, uint32_t timeout_m
             if (this->buffer_.size() >= 8) {
               uint16_t status = this->buffer_[6] | (this->buffer_[7] << 8);
               this->last_command_success_ = (status == 0);
+              ESP_LOGD(TAG, "Command 0x%04X %s (status: 0x%04X)", 
+                      command, this->last_command_success_ ? "succeeded" : "failed", status);
               return this->last_command_success_;
             }
+          } else {
+            ESP_LOGW(TAG, "Response command mismatch. Expected: 0x%04X, Got: 0x%04X", 
+                    command, resp_command);
           }
         }
         break;  // Exit if we got any complete frame
@@ -155,7 +211,13 @@ bool HLKLD2402Component::wait_for_response_(uint16_t command, uint32_t timeout_m
     }
     delay(1);  // Give other tasks a chance to run
   }
-  ESP_LOGW(TAG, "Command 0x%04X timeout", command);
+  
+  if (response_hex.empty()) {
+    ESP_LOGW(TAG, "Command 0x%04X timeout - no response received", command);
+  } else {
+    ESP_LOGW(TAG, "Command 0x%04X timeout - incomplete response: %s", 
+             command, response_hex.c_str());
+  }
   return false;
 }
 
