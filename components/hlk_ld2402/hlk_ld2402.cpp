@@ -16,6 +16,12 @@ void HLKLD2402Component::setup() {
   parent->set_data_bits(8);
   parent->set_parity(esphome::uart::UART_CONFIG_PARITY_NONE);  // Use direct enum value
 
+  // Flush any residual data
+  while (available())
+    read_byte();
+    
+  ESP_LOGD(TAG, "UART configured. Starting initialization sequence...");
+
   if (!enter_config_mode_()) {
     ESP_LOGE(TAG, "Failed to enter config mode");
     return;
@@ -87,20 +93,80 @@ void HLKLD2402Component::setup() {
   } while (0);
 
   exit_config_mode_();
+
+  // Add debug log at the end of setup
+  if (setup_success) {
+    ESP_LOGI(TAG, "Setup completed successfully. Waiting for data from sensor...");
+  } else {
+    ESP_LOGE(TAG, "Setup failed. Sensor may not work properly.");
+  }
+
+  // At the end of setup
+  ESP_LOGI(TAG, "Setup completed %s. Radar should now start sending data.",
+           setup_success ? "successfully" : "with errors");
+  
+  // Try engineering mode for better debugging
+  ESP_LOGI(TAG, "Switching to engineering mode for better debugging");
+  set_work_mode_(MODE_ENGINEERING);
 }
 
 void HLKLD2402Component::loop() {
   static uint32_t last_byte_time = 0;
   static const uint32_t TIMEOUT_MS = 100; // Reset buffer if no data for 100ms
+  static uint32_t last_debug_time = 0;
+  static uint8_t raw_buffer[16];
+  static size_t raw_pos = 0;
+  static uint32_t last_status_time = 0;
+  static uint32_t byte_count = 0;
+  static uint8_t last_bytes[16] = {0};
+  static size_t last_byte_pos = 0;
+  
+  // Add periodic debug message
+  if (millis() - last_debug_time > 5000) {  // Every 5 seconds
+    ESP_LOGD(TAG, "Waiting for data. Available bytes: %d", available());
+    last_debug_time = millis();
+  }
+  
+  // Every 10 seconds, report status
+  if (millis() - last_status_time > 10000) {
+    ESP_LOGI(TAG, "Status: received %u bytes in last 10 seconds", byte_count);
+    if (byte_count > 0) {
+      char hex_buf[50] = {0};
+      char ascii_buf[20] = {0};
+      for (int i = 0; i < 16 && i < byte_count; i++) {
+        sprintf(hex_buf + (i*3), "%02X ", last_bytes[i]);
+        sprintf(ascii_buf + i, "%c", (last_bytes[i] >= 32 && last_bytes[i] < 127) ? last_bytes[i] : '.');
+      }
+      ESP_LOGI(TAG, "Last bytes (hex): %s", hex_buf);
+      ESP_LOGI(TAG, "Last bytes (ascii): %s", ascii_buf);
+    }
+    byte_count = 0;
+    last_status_time = millis();
+  }
   
   while (available()) {
     uint8_t c;
     read_byte(&c);
     last_byte_time = millis();
+    byte_count++;
+    
+    // Record last bytes for diagnostics
+    last_bytes[last_byte_pos] = c;
+    last_byte_pos = (last_byte_pos + 1) % 16;
+    
+    // Debug: Collect and show raw data periodically
+    raw_buffer[raw_pos++] = c;
+    if (raw_pos >= sizeof(raw_buffer)) {
+      ESP_LOGD(TAG, "Raw data received (hex): %02X %02X %02X %02X %02X %02X %02X %02X...", 
+               raw_buffer[0], raw_buffer[1], raw_buffer[2], raw_buffer[3],
+               raw_buffer[4], raw_buffer[5], raw_buffer[6], raw_buffer[7]);
+      raw_pos = 0;
+    }
     
     if (c == '\n') {
       // Process complete line
       if (!line_buffer_.empty()) {
+        ESP_LOGI(TAG, "Received line: '%s'", line_buffer_.c_str());
         process_line_(line_buffer_);
         line_buffer_.clear();
       }
@@ -108,6 +174,7 @@ void HLKLD2402Component::loop() {
       if (line_buffer_.length() < 1024) {
         line_buffer_ += (char)c;
       } else {
+        ESP_LOGW(TAG, "Line buffer overflow, clearing");
         line_buffer_.clear();
       }
     }
@@ -120,7 +187,10 @@ void HLKLD2402Component::loop() {
 }
 
 void HLKLD2402Component::process_line_(const std::string &line) {
+  ESP_LOGD(TAG, "Processing line: '%s'", line.c_str());
+  
   if (line == "OFF") {
+    ESP_LOGI(TAG, "No target detected");
     if (this->presence_binary_sensor_ != nullptr) {
       this->presence_binary_sensor_->publish_state(false);
     }
@@ -254,8 +324,8 @@ bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
   return false;
 }
 
+// Also enhance dump_hex_ to show even when not in VERY_VERBOSE mode
 void HLKLD2402Component::dump_hex_(const uint8_t *data, size_t len, const char* prefix) {
-#ifdef ESPHOME_LOG_LEVEL_VERY_VERBOSE
   char buf[128];
   size_t pos = 0;
   
@@ -263,8 +333,7 @@ void HLKLD2402Component::dump_hex_(const uint8_t *data, size_t len, const char* 
     pos += sprintf(buf + pos, "%02X ", data[i]);
   }
   
-  ESP_LOGV(TAG, "%s: %s", prefix, buf);
-#endif
+  ESP_LOGI(TAG, "%s: %s", prefix, buf);  // Changed to LOGI to always print
 }
 
 bool HLKLD2402Component::enter_config_mode_() {
@@ -372,11 +441,13 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
 }
 
 bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
-  ESP_LOGD(TAG, "Setting work mode to %u", mode);
+  ESP_LOGI(TAG, "Setting work mode to %u (0x%X)", mode, mode);
   
   // Use production mode from manual instead of MODE_NORMAL
-  if (mode == MODE_NORMAL)
+  if (mode == MODE_NORMAL) {
     mode = MODE_PRODUCTION;
+    ESP_LOGI(TAG, "Using production mode 0x%X", mode);
+  }
     
   uint8_t mode_data[6];
   mode_data[0] = 0x00;
@@ -395,7 +466,23 @@ bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
     return false;
   }
 
-  return (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00);
+  // After setting mode, try to read any data to clear buffers
+  flush();
+  delay(100);
+  ESP_LOGI(TAG, "After mode change, available bytes: %d", available());
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+    ESP_LOGV(TAG, "Received byte after mode change: 0x%02X", c);
+  }
+
+  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+    ESP_LOGI(TAG, "Work mode set successfully");
+    return true;
+  }
+  
+  ESP_LOGE(TAG, "Failed to set work mode");
+  return false;
 }
 
 void HLKLD2402Component::calibrate() {
