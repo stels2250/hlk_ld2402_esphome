@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import uart, sensor, binary_sensor
+from esphome.components import uart, sensor, binary_sensor, button
 from esphome.const import (
     CONF_ID,
     CONF_NAME,
@@ -13,6 +13,7 @@ from esphome.const import (
     UNIT_CENTIMETER,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_ACCURACY_DECIMALS,
+    CONF_PLATFORM,
 )
 
 DEPENDENCIES = ["uart"]
@@ -50,9 +51,8 @@ async def to_code(config):
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
 # Define platform schemas
-SENSOR_SCHEMA = cv.Schema({
+DISTANCE_SENSOR_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    cv.Required(CONF_NAME): cv.string,
 }).extend(sensor.sensor_schema(
     device_class=DEVICE_CLASS_DISTANCE,
     state_class=STATE_CLASS_MEASUREMENT,
@@ -62,23 +62,19 @@ SENSOR_SCHEMA = cv.Schema({
 
 BINARY_SENSOR_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    cv.Required(CONF_NAME): cv.string,
-    cv.Required(CONF_DEVICE_CLASS): cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(binary_sensor.binary_sensor_schema(
+    device_class=cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
+))
 
 # Sensor platform registration functions
-@sensor.register_sensor(
-    sensor.PLATFORM_SCHEMA.extend(SENSOR_SCHEMA),
-)
-async def distance_sensor_to_code(config):
+@sensor.register_sensor("hlk_ld2402", DISTANCE_SENSOR_SCHEMA)
+async def hlk_ld2402_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await sensor.new_sensor(config)
     cg.add(parent.set_distance_sensor(var))
 
-@binary_sensor.register_binary_sensor(
-    binary_sensor.PLATFORM_SCHEMA.extend(BINARY_SENSOR_SCHEMA),
-)
-async def binary_sensor_to_code(config):
+@binary_sensor.register_binary_sensor("hlk_ld2402", BINARY_SENSOR_SCHEMA)
+async def hlk_ld2402_binary_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await binary_sensor.new_binary_sensor(config)
     if config[CONF_DEVICE_CLASS] == DEVICE_CLASS_PRESENCE:
