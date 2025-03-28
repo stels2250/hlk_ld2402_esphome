@@ -19,9 +19,13 @@ HLKLD2402Component = hlk_ld2402_ns.class_(
     "HLKLD2402Component", cg.Component, uart.UARTDevice
 )
 
+# Register the binary_sensor and sensor platform schemas
+sensor.SENSOR_SCHEMA = cv.Schema({}).extend(cv.COMPONENT_SCHEMA)
+binary_sensor.BINARY_SENSOR_SCHEMA = cv.Schema({}).extend(cv.COMPONENT_SCHEMA)
+
 # Custom configs
 CONF_PRESENCE = "presence"
-CONF_MICROMOVEMENT = "micromovement"  # Add this
+CONF_MICROMOVEMENT = "micromovement"
 CONF_MAX_DISTANCE = "max_distance"
 CONF_TIMEOUT = "timeout"
 CONF_UART_ID = "uart_id"
@@ -44,6 +48,31 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_MAX_DISTANCE, default=10.0): cv.float_range(min=0.7, max=10.0),
     cv.Optional(CONF_TIMEOUT, default=5): cv.int_range(min=0, max=65535),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+
+# These register the platforms
+SENSOR_PLATFORM_SCHEMA = sensor.SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(HLKLD2402Component),
+})
+
+BINARY_SENSOR_PLATFORM_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(HLKLD2402Component),
+})
+
+# Add these platform registration functions
+@SENSOR_PLATFORM_SCHEMA
+async def sensor_to_code(config):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
+    cg.add(paren.set_distance_sensor(var))
+
+@BINARY_SENSOR_PLATFORM_SCHEMA
+async def binary_sensor_to_code(config):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = await binary_sensor.new_binary_sensor(config)
+    if CONF_PRESENCE in config:
+        cg.add(paren.set_presence_binary_sensor(var))
+    elif CONF_MICROMOVEMENT in config:
+        cg.add(paren.set_micromovement_binary_sensor(var))
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
