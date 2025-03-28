@@ -10,85 +10,71 @@ static const char *const TAG = "hlk_ld2402";
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
   
-  // Wait a bit for the sensor to be ready after power-up
-  delay(100);
+  // Wait for sensor to be ready after power-up
+  delay(500);
   
   ESP_LOGD(TAG, "Enabling configuration mode...");
-  // Enable configuration mode
   if (!this->enable_configuration_()) {
     ESP_LOGE(TAG, "Failed to enable configuration mode");
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Configuration mode enabled");
+  ESP_LOGD(TAG, "Configuration mode enabled (Protocol version: 0x%04X, Buffer size: 0x%04X)", 
+           this->protocol_version_, this->buffer_size_);
 
-  delay(50);  // Add delay between commands
+  delay(100);
 
   ESP_LOGD(TAG, "Starting auto gain calibration...");
-  // Auto gain calibration (for firmware v3.3.5+)
   if (!this->auto_gain_calibration_()) {
     ESP_LOGW(TAG, "Auto gain calibration failed or not supported - continuing anyway");
   } else {
     ESP_LOGD(TAG, "Auto gain calibration successful");
-    delay(50);
+    delay(100);
   }
 
-  ESP_LOGD(TAG, "Setting work mode...");
-  // Set work mode to engineering mode (0x04)
-  if (!this->set_work_mode_(0x04)) {
-    ESP_LOGE(TAG, "Failed to set work mode");
+  ESP_LOGD(TAG, "Setting engineering mode...");
+  if (!this->set_work_mode_(true)) {
+    ESP_LOGE(TAG, "Failed to set engineering mode");
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Work mode set successfully");
+  ESP_LOGD(TAG, "Engineering mode set successfully");
 
-  delay(50);
+  delay(100);
 
-  ESP_LOGD(TAG, "Setting max distance to %.1f m...", this->max_distance_);
-  // Set max distance parameter
-  std::vector<uint8_t> distance_data = {
-      0x01, 0x00,  // Parameter ID for max distance
-      static_cast<uint8_t>(this->max_distance_ * 10), 0x00, 0x00, 0x00  // Value (multiply by 10 for fixed-point)
-  };
-  if (!this->send_command_(CMD_SET_PARAMS, distance_data)) {
+  // Set max distance (converted to cm)
+  uint16_t distance_cm = static_cast<uint16_t>(this->max_distance_ * 100);
+  ESP_LOGD(TAG, "Setting max distance to %u cm...", distance_cm);
+  if (!this->set_parameter_(PARAM_MAX_DISTANCE, distance_cm)) {
     ESP_LOGE(TAG, "Failed to set max distance");
     this->mark_failed();
     return;
   }
   ESP_LOGD(TAG, "Max distance set successfully");
 
-  delay(50);
+  delay(100);
 
   ESP_LOGD(TAG, "Setting disappear delay to %u s...", this->disappear_delay_);
-  // Set disappear delay parameter
-  std::vector<uint8_t> delay_data = {
-      0x04, 0x00,  // Parameter ID for disappear delay
-      static_cast<uint8_t>(this->disappear_delay_ & 0xFF),
-      static_cast<uint8_t>((this->disappear_delay_ >> 8) & 0xFF),
-      0x00, 0x00
-  };
-  if (!this->send_command_(CMD_SET_PARAMS, delay_data)) {
+  if (!this->set_parameter_(PARAM_DISAPPEAR_DELAY, this->disappear_delay_)) {
     ESP_LOGE(TAG, "Failed to set disappear delay");
     this->mark_failed();
     return;
   }
   ESP_LOGD(TAG, "Disappear delay set successfully");
 
-  delay(50);
+  delay(100);
 
   ESP_LOGD(TAG, "Saving configuration...");
-  // Save parameters
   if (!this->save_configuration_()) {
-    ESP_LOGE(TAG, "Failed to save parameters");
+    ESP_LOGE(TAG, "Failed to save configuration");
     this->mark_failed();
     return;
   }
   ESP_LOGD(TAG, "Configuration saved successfully");
 
-  delay(50);
+  delay(100);
 
   ESP_LOGD(TAG, "Disabling configuration mode...");
-  // Disable configuration mode
   if (!this->disable_configuration_()) {
     ESP_LOGE(TAG, "Failed to disable configuration mode");
     this->mark_failed();
@@ -96,6 +82,7 @@ void HLKLD2402Component::setup() {
   }
   ESP_LOGD(TAG, "Configuration mode disabled");
 
+  // Initialize sensor states
   if (this->distance_sensor_) this->distance_sensor_->publish_state(NAN);
   if (this->presence_sensor_) this->presence_sensor_->publish_state(false);
   if (this->movement_sensor_) this->movement_sensor_->publish_state(false);
@@ -193,11 +180,19 @@ bool HLKLD2402Component::wait_for_response_(uint16_t command, uint32_t timeout_m
         if (this->buffer_.size() >= 6) {
           uint16_t resp_command = this->buffer_[4] | (this->buffer_[5] << 8);
           if (resp_command == command) {
-            // Check ACK status if frame is long enough
-            if (this->buffer_.size() >= 8) {
+            // Special handling for enable configuration command
+            if (command == CMD_ENABLE_CONFIG && this->buffer_.size() >= 12) {
+              uint16_t status = this->buffer_[6] | (this->buffer_[7] << 8);
+              this->protocol_version_ = this->buffer_[8] | (this->buffer_[9] << 8);
+              this->buffer_size_ = this->buffer_[10] | (this->buffer_[11] << 8);
+              ESP_LOGV(TAG, "Enable config: status=%04X, proto=%04X, buf=%04X", 
+                      status, this->protocol_version_, this->buffer_size_);
+              this->last_command_success_ = (status == 0);
+              return this->last_command_success_;
+            } else if (this->buffer_.size() >= 8) {
               uint16_t status = this->buffer_[6] | (this->buffer_[7] << 8);
               this->last_command_success_ = (status == 0);
-              ESP_LOGD(TAG, "Command 0x%04X %s (status: 0x%04X)", 
+              ESP_LOGV(TAG, "Command 0x%04X %s (status: 0x%04X)", 
                       command, this->last_command_success_ ? "succeeded" : "failed", status);
               return this->last_command_success_;
             }
@@ -209,7 +204,7 @@ bool HLKLD2402Component::wait_for_response_(uint16_t command, uint32_t timeout_m
         break;  // Exit if we got any complete frame
       }
     }
-    delay(1);  // Give other tasks a chance to run
+    delay(1);
   }
   
   if (response_hex.empty()) {
@@ -233,10 +228,14 @@ void HLKLD2402Component::process_data_(const std::vector<uint8_t> &data) {
   bool presence = (state == 0x01 || state == 0x02);
   bool movement = (state == 0x01);
   bool micromovement = (state == 0x02);
-  float distance = (data[7] | (data[8] << 8)) / 100.0f;  // Convert to meters
+  
+  uint16_t distance_cm = data[7] | (data[8] << 8);
+  float distance_m = distance_cm / 100.0f;
 
-  if (this->distance_sensor_ && !std::isnan(distance))
-    this->distance_sensor_->publish_state(distance);
+  ESP_LOGV(TAG, "Raw data: state=%02X, distance=%u cm", state, distance_cm);
+
+  if (this->distance_sensor_ && !std::isnan(distance_m))
+    this->distance_sensor_->publish_state(distance_m);
   if (this->presence_sensor_)
     this->presence_sensor_->publish_state(presence);
   if (this->movement_sensor_)
@@ -244,7 +243,7 @@ void HLKLD2402Component::process_data_(const std::vector<uint8_t> &data) {
   if (this->micromovement_sensor_)
     this->micromovement_sensor_->publish_state(micromovement);
 
-  ESP_LOGD(TAG, "State: %d, Distance: %.2fm", state, distance);
+  ESP_LOGD(TAG, "State: %d, Distance: %.2fm", state, distance_m);
 }
 
 bool HLKLD2402Component::enable_configuration_() {
@@ -262,15 +261,24 @@ bool HLKLD2402Component::disable_configuration_() {
   return true;
 }
 
-bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
+bool HLKLD2402Component::set_work_mode_(bool engineering_mode) {
   std::vector<uint8_t> data = {
-      0x00, 0x00,  // Command value
-      static_cast<uint8_t>(mode & 0xFF),
-      static_cast<uint8_t>((mode >> 8) & 0xFF),
-      static_cast<uint8_t>((mode >> 16) & 0xFF),
-      static_cast<uint8_t>((mode >> 24) & 0xFF)
+      0x00, 0x00,  // Command value is always 0x0000
+      engineering_mode ? 0x04 : 0x64, 0x00, 0x00, 0x00  // 0x04000000 for engineering, 0x64000000 for normal
   };
   return this->send_command_(CMD_SET_MODE, data);
+}
+
+bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
+  std::vector<uint8_t> data = {
+      static_cast<uint8_t>(param_id & 0xFF),
+      static_cast<uint8_t>((param_id >> 8) & 0xFF),
+      static_cast<uint8_t>(value & 0xFF),
+      static_cast<uint8_t>((value >> 8) & 0xFF),
+      static_cast<uint8_t>((value >> 16) & 0xFF),
+      static_cast<uint8_t>((value >> 24) & 0xFF)
+  };
+  return this->send_command_(CMD_SET_PARAMS, data);
 }
 
 bool HLKLD2402Component::save_configuration_() {
@@ -285,6 +293,8 @@ void HLKLD2402Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HLK-LD2402:");
   ESP_LOGCONFIG(TAG, "  Max Distance: %.1f m", this->max_distance_);
   ESP_LOGCONFIG(TAG, "  Disappear Delay: %u s", this->disappear_delay_);
+  ESP_LOGCONFIG(TAG, "  Protocol Version: 0x%04X", this->protocol_version_);
+  ESP_LOGCONFIG(TAG, "  Buffer Size: 0x%04X", this->buffer_size_);
   LOG_SENSOR("  ", "Distance", this->distance_sensor_);
   LOG_BINARY_SENSOR("  ", "Presence", this->presence_sensor_);
   LOG_BINARY_SENSOR("  ", "Movement", this->movement_sensor_);

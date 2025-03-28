@@ -25,6 +25,11 @@ static const uint16_t CMD_SET_MODE = 0x0012;
 static const uint16_t CMD_SAVE_PARAMS = 0x00FD;
 static const uint16_t CMD_AUTO_GAIN = 0x00EE;
 
+// Parameter IDs
+static const uint16_t PARAM_MAX_DISTANCE = 0x0001;
+static const uint16_t PARAM_DISAPPEAR_DELAY = 0x0004;
+static const uint16_t PARAM_POWER_INTERFERENCE = 0x0005;
+
 class HLKLD2402Component;  // Forward declaration
 
 class HLKLD2402DistanceSensor : public sensor::Sensor, public Component {
@@ -79,9 +84,10 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   }
   bool enable_configuration_();
   bool disable_configuration_();
-  bool set_work_mode_(uint32_t mode);
+  bool set_work_mode_(bool engineering_mode);
   bool save_configuration_();
   bool auto_gain_calibration_();
+  bool set_parameter_(uint16_t param_id, uint32_t value);
 
   float max_distance_{8.5f};
   uint16_t disappear_delay_{30};
@@ -94,6 +100,8 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   bool configuration_mode_{false};
   bool last_command_success_{false};
   uint16_t last_command_{0};
+  uint16_t protocol_version_{0};
+  uint16_t buffer_size_{0};
 };
 
 }  // namespace hlk_ld2402
