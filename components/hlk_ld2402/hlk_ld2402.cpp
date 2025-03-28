@@ -14,7 +14,7 @@ void HLKLD2402Component::setup() {
   parent->set_baud_rate(115200);
   parent->set_stop_bits(1);
   parent->set_data_bits(8);
-  parent->set_parity(UART_CONFIG_PARITY_NONE);
+  parent->set_parity(UART_PARITY);  // Use the constant defined in hlk_ld2402.h
 
   if (!enter_config_mode_()) {
     ESP_LOGE(TAG, "Failed to enter config mode");
