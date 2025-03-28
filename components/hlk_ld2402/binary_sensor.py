@@ -6,12 +6,8 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
 )
-from .. import hlk_ld2402_ns, HLKLD2402Component
+from . import hlk_ld2402_ns, HLKLD2402Component, CONF_HLK_LD2402_ID
 
-DEPENDENCIES = ['hlk_ld2402']
-AUTO_LOAD = ['hlk_ld2402']
-
-CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 CONF_TYPE = "type"
 
 TYPES = {

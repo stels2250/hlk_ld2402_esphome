@@ -1,8 +1,3 @@
-
-import logging
-_LOGGER = logging.getLogger(__name__)
-_LOGGER.debug("Loading HLK-LD2402 sensor component")
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
@@ -12,13 +7,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
-from esphome.components.hlk_ld2402 import (
-    hlk_ld2402_ns, 
-    HLKLD2402Component,
-    CONF_HLK_LD2402_ID
-)
-
-DEPENDENCIES = ['hlk_ld2402']
+from . import hlk_ld2402_ns, HLKLD2402Component, CONF_HLK_LD2402_ID
 
 HLKLD2402DistanceSensor = hlk_ld2402_ns.class_(
     "HLKLD2402DistanceSensor",

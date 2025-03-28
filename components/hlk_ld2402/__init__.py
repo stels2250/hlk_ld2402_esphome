@@ -5,18 +5,19 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = ["@mouldybread"]
 DEPENDENCIES = ["uart"]
+
+# This tells ESPHome that when hlk_ld2402 is loaded, it should also try to load the sensor platform
+# from the sensor.py file in the same directory
 AUTO_LOAD = ["sensor", "binary_sensor"]
 
-# Create the namespace
+CONF_HLK_LD2402_ID = "hlk_ld2402_id"
+CONF_MAX_DISTANCE = "max_distance"
+CONF_DISAPPEAR_DELAY = "disappear_delay"
+
 hlk_ld2402_ns = cg.esphome_ns.namespace("hlk_ld2402")
 HLKLD2402Component = hlk_ld2402_ns.class_(
     "HLKLD2402Component", cg.Component, uart.UARTDevice
 )
-
-# Define constants that will be used across components
-CONF_HLK_LD2402_ID = "hlk_ld2402_id"
-CONF_MAX_DISTANCE = "max_distance"
-CONF_DISAPPEAR_DELAY = "disappear_delay"
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
