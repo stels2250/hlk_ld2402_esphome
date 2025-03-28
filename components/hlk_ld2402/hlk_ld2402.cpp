@@ -12,6 +12,30 @@ static const uint8_t FRAME_FOOTER[4] = {0x04, 0x03, 0x02, 0x01};
 static const uint8_t DATA_HEADER[4] = {0xF4, 0xF3, 0xF2, 0xF1};
 static const uint8_t DATA_FOOTER[4] = {0xF8, 0xF7, 0xF6, 0xF5};
 
+void HLKLD2402DistanceSensor::setup() {
+  if (this->parent_ == nullptr) {
+    ESP_LOGE(TAG, "Parent not set for distance sensor!");
+    this->mark_failed();
+    return;
+  }
+  this->parent_->set_distance_sensor(this);
+}
+
+void HLKLD2402BinarySensor::setup() {
+  if (this->parent_ == nullptr) {
+    ESP_LOGE(TAG, "Parent not set for binary sensor!");
+    this->mark_failed();
+    return;
+  }
+  if (this->type_ == "presence") {
+    this->parent_->set_presence_sensor(this);
+  } else if (this->type_ == "movement") {
+    this->parent_->set_movement_sensor(this);
+  } else if (this->type_ == "micromovement") {
+    this->parent_->set_micromovement_sensor(this);
+  }
+}
+
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
   if (distance_sensor_) distance_sensor_->publish_state(NAN);
