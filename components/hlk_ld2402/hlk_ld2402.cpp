@@ -9,23 +9,49 @@ static const char *const TAG = "hlk_ld2402";
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
   
-  // Configure UART
+  // Try sending some test data to verify TX functionality
+  write_str("TEST\n");
+  ESP_LOGI(TAG, "Sent test string to verify TX line");
+  delay(500);
+  
+  // Configure UART - explicitly set again
   auto *parent = (uart::UARTComponent *) this->parent_;
   parent->set_baud_rate(115200);
   parent->set_stop_bits(1);
   parent->set_data_bits(8);
-  parent->set_parity(esphome::uart::UART_CONFIG_PARITY_NONE);  // Use direct enum value
+  parent->set_parity(esphome::uart::UART_CONFIG_PARITY_NONE);
 
   // Flush any residual data
+  ESP_LOGI(TAG, "Flushing UART");
+  flush();
+  delay(100);
   while (available()) {
     uint8_t c;
     read_byte(&c);
+    ESP_LOGD(TAG, "Flushed byte: 0x%02X", c);
   }
     
   ESP_LOGD(TAG, "UART configured. Starting initialization sequence...");
 
-  if (!enter_config_mode_()) {
-    ESP_LOGE(TAG, "Failed to enter config mode");
+  // Try multiple times to enter config mode
+  bool config_success = false;
+  for (int i = 0; i < 3 && !config_success; i++) {
+    ESP_LOGI(TAG, "Attempt %d to enter config mode", i+1);
+    if (enter_config_mode_()) {
+      config_success = true;
+      break;
+    }
+    delay(500);
+  }
+
+  if (!config_success) {
+    ESP_LOGE(TAG, "Failed to enter config mode after multiple attempts");
+    
+    // Alternative initialization - try direct engineering mode
+    ESP_LOGI(TAG, "Trying direct mode change as fallback");
+    set_work_mode_(MODE_ENGINEERING);
+    delay(100);
+    
     return;
   }
 
@@ -107,9 +133,21 @@ void HLKLD2402Component::setup() {
   ESP_LOGI(TAG, "Setup completed %s. Radar should now start sending data.",
            setup_success ? "successfully" : "with errors");
   
-  // Try engineering mode for better debugging
-  ESP_LOGI(TAG, "Switching to engineering mode for better debugging");
+  // Try both modes - first engineering for debugging, then production
+  ESP_LOGI(TAG, "Switching to engineering mode for debugging");
   set_work_mode_(MODE_ENGINEERING);
+  delay(500);
+  
+  ESP_LOGI(TAG, "Switching to production mode");
+  set_work_mode_(MODE_PRODUCTION);
+  delay(500);
+  
+  ESP_LOGI(TAG, "Switching back to engineering mode for better debugging");
+  set_work_mode_(MODE_ENGINEERING);
+  delay(500);
+  
+  // Force another save just to be sure
+  save_config();
 }
 
 void HLKLD2402Component::loop() {
@@ -122,6 +160,28 @@ void HLKLD2402Component::loop() {
   static uint32_t byte_count = 0;
   static uint8_t last_bytes[16] = {0};
   static size_t last_byte_pos = 0;
+  static uint32_t last_command_time = 0;
+  static const uint32_t COMMAND_INTERVAL = 30000; // 30 seconds
+  static uint32_t loop_count = 0;
+  
+  // Increment loop counter for diagnostics
+  loop_count++;
+  
+  // Every 30 seconds, try a special command to wake up the module
+  if (millis() - last_command_time > COMMAND_INTERVAL) {
+    ESP_LOGI(TAG, "Loop has run %u times. Sending wake-up command...", loop_count);
+    
+    // First try direct engineering mode
+    set_work_mode_(MODE_ENGINEERING);
+    delay(100);
+    
+    // Then try turning on auto gain again
+    enable_auto_gain();
+    
+    // Reset the timer
+    last_command_time = millis();
+    loop_count = 0;
+  }
   
   // Add periodic debug message
   if (millis() - last_debug_time > 5000) {  // Every 5 seconds
@@ -279,6 +339,13 @@ bool HLKLD2402Component::send_command_(uint16_t command, const uint8_t *data, si
   
   // Footer
   frame.insert(frame.end(), FRAME_FOOTER, FRAME_FOOTER + 4);
+  
+  // Log the frame we're sending for debugging
+  char hex_buf[128] = {0};
+  for (size_t i = 0; i < frame.size() && i < 40; i++) {
+    sprintf(hex_buf + (i*3), "%02X ", frame[i]);
+  }
+  ESP_LOGI(TAG, "Sending command 0x%04X, frame: %s", command, hex_buf);
   
   return write_frame_(frame);
 }
