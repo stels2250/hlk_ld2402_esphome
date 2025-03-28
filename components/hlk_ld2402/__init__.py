@@ -3,7 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import uart, sensor, binary_sensor
 from esphome.const import (
     CONF_ID,
-    CONF_NAME,  # Add this
+    CONF_NAME,
+    CONF_DEVICE_CLASS,  # Add this
     CONF_DISTANCE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_PRESENCE,
