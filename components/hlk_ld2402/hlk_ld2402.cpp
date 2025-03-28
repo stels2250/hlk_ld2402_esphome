@@ -9,10 +9,14 @@ static const char *const TAG = "hlk_ld2402";
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
   
-  this->set_uart_baud_rate(UART_BAUD_RATE);
-  this->set_uart_stop_bits(UART_STOP_BITS);
-  this->set_uart_data_bits(UART_DATA_BITS);
-  this->set_uart_parity(UART_PARITY);
+  // Get the UART parent
+  auto *parent = (esphome::uart::UARTComponent *) this->parent_;
+  
+  // Configure UART settings through parent
+  parent->set_baud_rate(UART_BAUD_RATE);
+  parent->set_stop_bits(UART_STOP_BITS);
+  parent->set_data_bits(UART_DATA_BITS);
+  parent->set_parity(UART_PARITY);
 
   if (max_distance_ > MAX_THEORETICAL_RANGE) {
     ESP_LOGW(TAG, "Max distance %.1f exceeds theoretical maximum, clamping to %.1f", 
@@ -149,21 +153,23 @@ void HLKLD2402Component::process_line_(const std::string &line) {
     if (end != distance_str.c_str() && (*end == '\0' || *end == ' ')) {
       // Convert meters to centimeters for ESPHome
       distance = distance * 100;  // Convert to cm
-      ESP_LOGI(TAG, "Detected distance: %.2f cm", distance);
       
+      // According to manual:
+      // - Movement detection up to 10m
+      // - Micromovement detection up to 4m
+      // - Static presence detection up to 5m
       if (this->distance_sensor_ != nullptr) {
         this->distance_sensor_->publish_state(distance);
-        ESP_LOGI(TAG, "Published distance: %.2f cm", distance);
       }
       
-      // For distances under 4m, consider it micromovement detection
       if (this->micromovement_binary_sensor_ != nullptr) {
-        this->micromovement_binary_sensor_->publish_state(distance <= 400);
+        bool is_micro = distance <= (MICROMOVEMENT_RANGE * 100);
+        this->micromovement_binary_sensor_->publish_state(is_micro);
       }
       
       if (this->presence_binary_sensor_ != nullptr) {
-        this->presence_binary_sensor_->publish_state(true);
-        ESP_LOGI(TAG, "Published presence: TRUE");
+        bool is_presence = distance <= (STATIC_RANGE * 100);
+        this->presence_binary_sensor_->publish_state(is_presence);
       }
     } else {
       ESP_LOGW(TAG, "Failed to parse distance value: '%s'", distance_str.c_str());
@@ -185,12 +191,11 @@ bool HLKLD2402Component::write_frame_(const std::vector<uint8_t> &frame) {
   size_t tries = 0;
   while (written < frame.size() && tries++ < 3) {
     size_t to_write = frame.size() - written;
-    size_t ret = write_array(&frame[written], to_write);
-    if (ret == 0) {
+    write_array(&frame[written], to_write);
+    written += to_write;
+    if (written < frame.size()) {
       delay(5);
-      continue;
     }
-    written += ret;
   }
   return written == frame.size();
 }

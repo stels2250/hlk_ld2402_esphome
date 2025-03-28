@@ -43,6 +43,8 @@ sensor:
       name: "Target Distance"
       unit_of_measurement: "cm"
       accuracy_decimals: 0
+      filters:
+        - throttle: 1s  # Only update once per second
 
 # Optional test buttons
 button:

@@ -32,11 +32,19 @@ static const uint16_t PARAM_TIMEOUT = 0x0004;
 static const uint32_t MODE_NORMAL = 0x00000000;
 static const uint32_t MODE_CONFIG = 0x00000001;
 
+// Work modes from manual
+static const uint32_t MODE_ENGINEERING = 0x00000004;  // For testing
+static const uint32_t MODE_PRODUCTION = 0x00000064;   // Normal operation
+
+// Thresholds from manual
+static const uint16_t PARAM_TRIGGER_THRESHOLD = 0x0010;  // Range: 0x0010-0x001F
+static const uint16_t PARAM_MICRO_THRESHOLD = 0x0030;    // Range: 0x0030-0x003F
+
 // Update - Correct baud rate according to manual
 static const uint32_t UART_BAUD_RATE = 115200;
 static const uint8_t UART_STOP_BITS = 1;
 static const uint8_t UART_DATA_BITS = 8;
-static const uint8_t UART_PARITY = UART_CONFIG_PARITY_NONE;
+static const uint8_t UART_PARITY = esphome::uart::UART_CONFIG_PARITY_NONE;
 
 class HLKLD2402Component : public Component, public uart::UARTDevice {
 public:
@@ -71,11 +79,14 @@ protected:
 private:
   // According to manual, response timeout should be 1s
   static const uint32_t RESPONSE_TIMEOUT_MS = 1000;
-  // Distance is reported in decimeters (1 distance gate = 70cm)
-  static const float DISTANCE_GATE_SIZE = 0.7f;
-  // Maximum theoretical range is 10m
-  static const float MAX_THEORETICAL_RANGE = 10.0f;
+  static constexpr float DISTANCE_GATE_SIZE = 0.7f;
+  static constexpr float MAX_THEORETICAL_RANGE = 10.0f;
   
+  // According to manual, optimal ranges
+  static constexpr float MOVEMENT_RANGE = 10.0f;     // Max 10m for movement
+  static constexpr float MICROMOVEMENT_RANGE = 4.0f; // Max 4m for micromovement
+  static constexpr float STATIC_RANGE = 5.0f;        // Max 5m for static detection
+
   sensor::Sensor *distance_sensor_{nullptr};
   binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *micromovement_binary_sensor_{nullptr};
