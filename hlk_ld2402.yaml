@@ -20,8 +20,6 @@ sensor:
     name: "Radar Distance"
     id: radar_distance
     hlk_ld2402_id: radar_sensor
-    unit_of_measurement: "m"
-    accuracy_decimals: 2
 
 binary_sensor:
   - platform: hlk_ld2402
@@ -29,10 +27,9 @@ binary_sensor:
     id: radar_presence
     hlk_ld2402_id: radar_sensor
     type: presence
-    device_class: presence
 
   - platform: hlk_ld2402
-    name: "Radar Movement"
+    name: "Radar Movement" 
     id: radar_movement
     hlk_ld2402_id: radar_sensor
     type: movement
