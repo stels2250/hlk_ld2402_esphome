@@ -14,11 +14,10 @@ static const uint8_t DATA_FOOTER[4] = {0xF8, 0xF7, 0xF6, 0xF5};
 
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
-  // Initialize sensor states
+  if (distance_sensor_) distance_sensor_->publish_state(NAN);
   if (presence_sensor_) presence_sensor_->publish_state(false);
   if (movement_sensor_) movement_sensor_->publish_state(false);
   if (micromovement_sensor_) micromovement_sensor_->publish_state(false);
-  if (distance_sensor_) distance_sensor_->publish_state(NAN);
 }
 
 void HLKLD2402Component::loop() {
@@ -27,9 +26,7 @@ void HLKLD2402Component::loop() {
     read_byte(&c);
     buffer_.push_back(c);
 
-    // Check for complete frame
-    if (buffer_.size() >= 8 && 
-        memcmp(&buffer_[buffer_.size()-4], DATA_FOOTER, 4) == 0) {
+    if (buffer_.size() >= 8 && memcmp(&buffer_[buffer_.size()-4], DATA_FOOTER, 4) == 0) {
       process_data_(buffer_);
       buffer_.clear();
     }
@@ -50,11 +47,10 @@ void HLKLD2402Component::process_data_(const std::vector<uint8_t> &data) {
   bool micromovement = (state == 0x02);
   float distance = (data[7] | (data[8] << 8)) / 100.0f;
 
-  // Publish states
+  if (distance_sensor_) distance_sensor_->publish_state(distance);
   if (presence_sensor_) presence_sensor_->publish_state(presence);
   if (movement_sensor_) movement_sensor_->publish_state(movement);
   if (micromovement_sensor_) micromovement_sensor_->publish_state(micromovement);
-  if (distance_sensor_) distance_sensor_->publish_state(distance);
 
   ESP_LOGD(TAG, "State: %d, Distance: %.2fm", state, distance);
 }

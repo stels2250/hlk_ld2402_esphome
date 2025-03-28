@@ -14,7 +14,6 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   void set_max_distance(float distance) { max_distance_ = distance; }
   void set_disappear_delay(uint16_t delay) { disappear_delay_ = delay; }
 
-  // Sensor setters
   void set_distance_sensor(sensor::Sensor *sensor) { distance_sensor_ = sensor; }
   void set_presence_sensor(binary_sensor::BinarySensor *sensor) { presence_sensor_ = sensor; }
   void set_movement_sensor(binary_sensor::BinarySensor *sensor) { movement_sensor_ = sensor; }

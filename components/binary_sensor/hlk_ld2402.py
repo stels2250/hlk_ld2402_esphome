@@ -8,7 +8,6 @@ from .. import hlk_ld2402_ns, HLKLD2402Component
 DEPENDENCIES = ["hlk_ld2402"]
 CONF_HLK_LD2402 = "hlk_ld2402_id"
 
-# Sensor types
 CONF_PRESENCE = "presence"
 CONF_MOVEMENT = "movement"
 CONF_MICROMOVEMENT = "micromovement"
@@ -31,7 +30,7 @@ def validate_config(value):
         value[CONF_DEVICE_CLASS] = "presence"
     return value
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(validate_config)
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(validate_config)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
