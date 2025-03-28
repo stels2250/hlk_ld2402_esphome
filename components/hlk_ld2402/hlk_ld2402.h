@@ -67,6 +67,7 @@ public:
   void set_distance_sensor(sensor::Sensor *distance_sensor) { distance_sensor_ = distance_sensor; }
   void set_presence_binary_sensor(binary_sensor::BinarySensor *presence) { presence_binary_sensor_ = presence; }
   void set_micromovement_binary_sensor(binary_sensor::BinarySensor *micro) { micromovement_binary_sensor_ = micro; }
+  void set_power_interference_binary_sensor(binary_sensor::BinarySensor *power_interference) { power_interference_binary_sensor_ = power_interference; }
   void set_max_distance(float max_distance) { max_distance_ = max_distance; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
   
@@ -107,6 +108,7 @@ private:
   sensor::Sensor *distance_sensor_{nullptr};
   binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *micromovement_binary_sensor_{nullptr};
+  binary_sensor::BinarySensor *power_interference_binary_sensor_{nullptr};
   float max_distance_{5.0};
   uint32_t timeout_{5};
   bool config_mode_{false};

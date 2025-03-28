@@ -34,6 +34,13 @@ binary_sensor:
     name: "Micromovement"
     device_class: motion
     hlk_ld2402_id: radar_sensor
+  
+  - platform: hlk_ld2402
+    id: radar_power_interference
+    name: "Radar Power Interference"
+    device_class: problem
+    power_interference: true
+    hlk_ld2402_id: radar_sensor
 
 # Distance sensor
 sensor:

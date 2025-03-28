@@ -35,6 +35,9 @@ void HLKLD2402Component::setup() {
   // Skip configuration and just set up sensors
   ESP_LOGI(TAG, "LD2402 appears to be sending data already. Skipping configuration.");
   ESP_LOGI(TAG, "Use the Engineering Mode button if you need to modify settings.");
+  
+  // Check for power interference when starting up
+  check_power_interference();
 }
 
 void HLKLD2402Component::loop() {
@@ -533,6 +536,13 @@ void HLKLD2402Component::check_power_interference() {
   uint32_t value;
   if (get_parameter_(PARAM_POWER_INTERFERENCE, value)) {
     power_interference_detected_ = (value == 2);
+    ESP_LOGI(TAG, "Power interference status: %u", value);
+    
+    // Update binary sensor if available
+    if (this->power_interference_binary_sensor_ != nullptr) {
+      this->power_interference_binary_sensor_->publish_state(power_interference_detected_);
+    }
+    
     if (power_interference_detected_) {
       ESP_LOGW(TAG, "Power interference detected!");
     }
