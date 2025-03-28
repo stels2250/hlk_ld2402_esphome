@@ -10,10 +10,12 @@ esp8266:
 uart:
   tx_pin: GPIO1  # D10 on ESP8266
   rx_pin: GPIO3  # D9 on ESP8266
-  baud_rate: 115200
-  data_bits: 8
-  parity: NONE
-  stop_bits: 1
+
+# Remove redundant UART settings since they're handled by the component
+# baud_rate: 115200
+# data_bits: 8
+# parity: NONE
+# stop_bits: 1
 
 # HLK-LD2402 configuration
 hlk_ld2402:

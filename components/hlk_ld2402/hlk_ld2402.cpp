@@ -20,12 +20,6 @@ void HLKLD2402Component::setup() {
     max_distance_ = MAX_THEORETICAL_RANGE;
   }
 
-  if (!this->check_uart_settings(9600)) {
-    ESP_LOGE(TAG, "UART settings incorrect! Please set UART baud rate to 9600");
-    this->mark_failed();
-    return;
-  }
-
   ESP_LOGD(TAG, "Max distance: %.1f m, Timeout: %u s", max_distance_, timeout_);
   
   bool setup_success = false;
