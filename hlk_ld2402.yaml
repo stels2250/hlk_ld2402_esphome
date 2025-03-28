@@ -1,0 +1,45 @@
+# Example configuration entry
+uart:
+  id: uart_bus
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 115200
+
+external_components:
+  - source:
+      type: git
+      url: https://github.com/mouldybread/hlk_ld2402_esphome
+      ref: main
+    components: [hlk_ld2402]
+sensor:
+  - platform: custom
+    lambda: |-
+      auto ld2402 = new HLK_LD2402(id(uart_bus));
+      App.register_component(ld2402);
+      
+      // Configure parameters
+      ld2402->set_max_distance(8.5);
+      ld2402->set_disappear_delay(30);
+      
+      // Create sensors
+      ld2402->presence_sensor = new binary_sensor::BinarySensor();
+      ld2402->distance_sensor = new sensor::Sensor();
+      ld2402->movement_sensor = new binary_sensor::BinarySensor();
+      ld2402->micromovement_sensor = new binary_sensor::BinarySensor();
+      
+      return {ld2402->presence_sensor, ld2402->distance_sensor, 
+              ld2402->movement_sensor, ld2402->micromovement_sensor};
+              
+    binary_sensors:
+      - name: "Presence"
+        id: presence
+        device_class: presence
+      - name: "Movement"
+        id: movement
+      - name: "Micro Movement"
+        id: micro_movement
+    sensors:
+      - name: "Distance"
+        id: distance
+        unit_of_measurement: "m"
+        accuracy_decimals: 2
