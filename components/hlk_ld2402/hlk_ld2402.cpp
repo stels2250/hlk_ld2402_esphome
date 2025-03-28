@@ -60,8 +60,8 @@ void HLKLD2402Component::loop() {
     last_debug_time = millis();
   }
   
-  // Periodically check power interference (every 60 seconds)
-  if (millis() - last_interference_check_time > 60000) {
+  // Periodically check power interference (every 5 minutes)
+  if (millis() - last_interference_check_time > 300000) {
     ESP_LOGI(TAG, "Performing periodic power interference check");
     check_power_interference();
     last_interference_check_time = millis();
@@ -302,30 +302,62 @@ bool HLKLD2402Component::enter_config_mode_() {
     
   ESP_LOGD(TAG, "Entering config mode...");
   
-  // Just send the command with no data
-  if (!send_command_(CMD_ENABLE_CONFIG)) {
-    ESP_LOGE(TAG, "Failed to send config mode command");
-    return false;
-  }
-    
-  std::vector<uint8_t> response;
-  if (!read_response_(response)) {
-    ESP_LOGE(TAG, "No response to config mode command");
-    return false;
-  }
-    
-  // The response should be: FF 01 00 00 02 00 20 00
-  if (response.size() >= 8) {
-    // Check if response indicates success (00 00 after FF 01)
-    if (response[0] == 0xFF && response[1] == 0x01 && 
-        response[2] == 0x00 && response[3] == 0x00) {
-      config_mode_ = true;
-      ESP_LOGI(TAG, "Successfully entered config mode");
-      return true;
-    }
+  // Clear any pending data first
+  flush();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
   }
   
-  ESP_LOGE(TAG, "Invalid response to config mode command");
+  // Try multiple times with delays
+  for (int attempt = 0; attempt < 3; attempt++) {
+    ESP_LOGI(TAG, "Config mode attempt %d", attempt + 1);
+    
+    // Send the command with no data
+    if (!send_command_(CMD_ENABLE_CONFIG)) {
+      ESP_LOGE(TAG, "Failed to send config mode command");
+      delay(500);  // Wait before retrying
+      continue;
+    }
+    
+    // Delay slightly to ensure response has time to arrive
+    delay(200);
+    
+    // Check for response with timeout
+    uint32_t start = millis();
+    while ((millis() - start) < 1000) {  // 1 second timeout
+      if (available() >= 12) {  // Minimum expected response size with header/footer
+        std::vector<uint8_t> response;
+        if (read_response_(response)) {
+          ESP_LOGI(TAG, "Received response to config mode command");
+          
+          // Dump the response bytes for debugging
+          char hex_buf[128] = {0};
+          for (size_t i = 0; i < response.size() && i < 20; i++) {
+            sprintf(hex_buf + (i*3), "%02X ", response[i]);
+          }
+          ESP_LOGI(TAG, "Response: %s", hex_buf);
+          
+          // Check if response indicates success
+          if (response.size() >= 8 && 
+              response[0] == 0xFF && response[1] == 0x01 &&
+              response[2] == 0x00 && response[3] == 0x00) {
+            config_mode_ = true;
+            ESP_LOGI(TAG, "Successfully entered config mode");
+            return true;
+          } else {
+            ESP_LOGW(TAG, "Invalid config mode response format");
+          }
+        }
+      }
+      delay(50);  // Small delay between checks
+    }
+    
+    ESP_LOGW(TAG, "No valid response to config mode command, retrying");
+    delay(500);  // Wait before retrying
+  }
+  
+  ESP_LOGE(TAG, "Failed to enter config mode after 3 attempts");
   return false;
 }
 
@@ -543,11 +575,18 @@ void HLKLD2402Component::enable_auto_gain() {
 void HLKLD2402Component::check_power_interference() {
   ESP_LOGD(TAG, "Checking power interference status");
   
-  // Need to enter config mode to check parameters
+  // With periodic checks in loop(), we don't want to fail if entering config mode fails
+  // For now, just return default value
   bool was_in_config = config_mode_;
   if (!was_in_config) {
     if (!enter_config_mode_()) {
       ESP_LOGE(TAG, "Failed to enter config mode for power interference check");
+      
+      // Still update the sensor so it's not "unknown" - we'll assume no interference
+      if (this->power_interference_binary_sensor_ != nullptr) {
+        this->power_interference_binary_sensor_->publish_state(false);
+        ESP_LOGW(TAG, "Config mode failed, setting power interference to OFF by default");
+      }
       return;
     }
   }
