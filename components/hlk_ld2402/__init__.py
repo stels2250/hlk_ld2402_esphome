@@ -1,23 +1,20 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
-from esphome.const import (
-    CONF_ID,
-    CONF_MAX_DISTANCE,
-    CONF_TIMEOUT,
-)
+from esphome.const import CONF_ID, CONF_TIMEOUT
 
 DEPENDENCIES = ["uart"]
-# Add button to AUTO_LOAD to ensure button.py is loaded automatically
-AUTO_LOAD = ["sensor", "binary_sensor", "button"]
+# Remove button from AUTO_LOAD since we're using template buttons
+AUTO_LOAD = ["sensor", "binary_sensor"]
+
+# Define our own constants
+CONF_MAX_DISTANCE = "max_distance"
+CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 
 hlk_ld2402_ns = cg.esphome_ns.namespace("hlk_ld2402")
 HLKLD2402Component = hlk_ld2402_ns.class_(
     "HLKLD2402Component", cg.Component, uart.UARTDevice
 )
-
-# Export the ID for use in other platform files
-CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 
 # Main component schema
 CONFIG_SCHEMA = cv.Schema({

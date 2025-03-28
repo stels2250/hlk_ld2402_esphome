@@ -15,7 +15,6 @@ external_components:
       url: https://github.com/mouldybread/hlk_ld2402_esphome
     refresh: 0ms
 
-
 hlk_ld2402:
   uart_id: uart_bus
   id: radar_sensor
@@ -26,13 +25,13 @@ hlk_ld2402:
 binary_sensor:
   - platform: hlk_ld2402
     id: radar_presence
-    name: "${friendly_name} Presence"
+    name: "Presence"
     device_class: presence
     hlk_ld2402_id: radar_sensor
 
   - platform: hlk_ld2402
     id: radar_micromovement
-    name: "${friendly_name} Micromovement"
+    name: "Micromovement"
     device_class: motion
     hlk_ld2402_id: radar_sensor
 
@@ -40,7 +39,7 @@ binary_sensor:
 sensor:
   - platform: hlk_ld2402
     id: radar_distance
-    name: "${friendly_name} Distance"
+    name: "Distance"
     hlk_ld2402_id: radar_sensor
     device_class: distance
     unit_of_measurement: "cm"
@@ -48,27 +47,27 @@ sensor:
     filters:
       - throttle: 2s
 
-# Control buttons
+# Control buttons - using template buttons instead of custom platform
 button:
   - platform: template
-    name: "${friendly_name} Calibrate"
+    name: "Calibrate"
     on_press:
       - lambda: id(radar_sensor).calibrate();
 
   - platform: template
-    name: "${friendly_name} Auto Gain"
+    name: "Auto Gain"
     on_press:
       - lambda: id(radar_sensor).enable_auto_gain();
 
   - platform: template
-    name: "${friendly_name} Save Config"
+    name: "Save Config"
     on_press:
       - lambda: id(radar_sensor).save_config();
 
   - platform: template
-    name: "${friendly_name} Engineering Mode"
+    name: "Engineering Mode"
     on_press:
-      - lambda: id(radar_sensor).set_work_mode_(0x04);
+      - lambda: id(radar_sensor).set_work_mode_(4);
 
 # Add status LED if available
 status_led:
