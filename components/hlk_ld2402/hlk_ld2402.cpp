@@ -1,5 +1,4 @@
 #include "hlk_ld2402.h"
-#include "esphome/core/log.h"
 
 namespace esphome {
 namespace hlk_ld2402 {
@@ -12,14 +11,33 @@ void HLKLD2402Component::loop() {
   while (available()) {
     uint8_t c;
     read_byte(&c);
-    this->buffer_.push_back(c);
     
-    // Log each byte we receive
-    ESP_LOGV(TAG, "RX: 0x%02X", c);
-    
-    // Keep buffer size reasonable
-    if (this->buffer_.size() > 128) {
-      this->buffer_.clear();
+    if (c == '\n') {
+      // Process complete line
+      if (!line_buffer_.empty()) {
+        process_line_(line_buffer_);
+        line_buffer_.clear();
+      }
+    } else if (c != '\r') {  // Skip \r
+      line_buffer_ += (char)c;
+    }
+  }
+}
+
+void HLKLD2402Component::process_line_(const std::string &line) {
+  ESP_LOGV(TAG, "Got line: %s", line.c_str());
+  
+  if (line.compare(0, 9, "distance:") == 0) {
+    // Extract distance value
+    std::string distance_str = line.substr(9);
+    try {
+      float distance = std::stof(distance_str);
+      if (this->distance_sensor_ != nullptr) {
+        this->distance_sensor_->publish_state(distance / 100.0f);  // Convert to meters
+      }
+      ESP_LOGD(TAG, "Distance: %.2f m", distance / 100.0f);
+    } catch (...) {
+      ESP_LOGW(TAG, "Invalid distance value: %s", distance_str.c_str());
     }
   }
 }
@@ -41,24 +59,17 @@ void HLKLD2402Component::dump_hex(const std::vector<uint8_t> &data, const char* 
 void HLKLD2402Component::test_raw_tx(const std::vector<uint8_t> &data) {
   ESP_LOGI(TAG, "Sending raw data (%d bytes):", data.size());
   dump_hex(data, "TX");
-  
-  this->write_array(data.data(), data.size());
+  write_array(data.data(), data.size());
 }
 
 void HLKLD2402Component::test_get_version() {
   ESP_LOGI(TAG, "Testing GET_VERSION command");
   
   std::vector<uint8_t> frame;
-  // Header
-  frame.insert(frame.end(), FRAME_HEADER, FRAME_HEADER + 4);
-  // Length (2 bytes for command)
-  frame.push_back(0x02);
-  frame.push_back(0x00);
-  // Command (GET_VERSION)
-  frame.push_back(0x00);
-  frame.push_back(0x00);
-  // Footer
-  frame.insert(frame.end(), FRAME_FOOTER, FRAME_FOOTER + 4);
+  frame.insert(frame.end(), {0xFD, 0xFC, 0xFB, 0xFA});  // Header
+  frame.insert(frame.end(), {0x02, 0x00});              // Length
+  frame.insert(frame.end(), {0x00, 0x00});              // Command
+  frame.insert(frame.end(), {0x04, 0x03, 0x02, 0x01});  // Footer
   
   test_raw_tx(frame);
 }
