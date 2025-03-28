@@ -1,106 +1,163 @@
 #include "hlk_ld2402.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace hlk_ld2402 {
 
+static const char *const TAG = "hlk_ld2402";
+
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
+  ESP_LOGD(TAG, "Max distance: %.1f m, Timeout: %u s", max_distance_, timeout_);
+  
+  bool setup_success = false;
   
   if (!enter_config_mode_()) {
     ESP_LOGE(TAG, "Failed to enter config mode");
     return;
   }
 
-  // Get firmware version
-  std::vector<uint8_t> response;
-  if (send_command_(CMD_GET_VERSION) && read_response_(response)) {
-    if (response.size() >= 8) {
-      size_t version_len = response[4] | (response[5] << 8);
-      if (version_len + 6 <= response.size()) {
-        firmware_version_ = std::string(response.begin() + 6, response.begin() + 6 + version_len);
-        ESP_LOGCONFIG(TAG, "Firmware Version: %s", firmware_version_.c_str());
+  do {
+    ESP_LOGD(TAG, "Entered config mode successfully");
+    
+    // Get firmware version
+    std::vector<uint8_t> response;
+    if (send_command_(CMD_GET_VERSION) && read_response_(response)) {
+      ESP_LOGV(TAG, "Got version response, size: %d", response.size());
+      if (response.size() >= 8) {
+        size_t version_len = response[4] | (response[5] << 8);
+        if (version_len + 6 <= response.size()) {
+          firmware_version_ = std::string(response.begin() + 6, response.begin() + 6 + version_len);
+          ESP_LOGCONFIG(TAG, "Firmware Version: %s", firmware_version_.c_str());
+        }
       }
+    } else {
+      ESP_LOGE(TAG, "Failed to get firmware version");
+      break;
     }
+
+    // Set max distance (convert meters to decimeters)
+    uint32_t distance_dm = max_distance_ * 10;
+    ESP_LOGD(TAG, "Setting max distance to %u dm", distance_dm);
+    if (!set_parameter_(PARAM_MAX_DISTANCE, distance_dm)) {
+      ESP_LOGE(TAG, "Failed to set max distance");
+      break;
+    }
+
+    // Set timeout
+    ESP_LOGD(TAG, "Setting timeout to %u s", timeout_);
+    if (!set_parameter_(PARAM_TIMEOUT, timeout_)) {
+      ESP_LOGE(TAG, "Failed to set timeout");
+      break;
+    }
+
+    // Set to normal working mode
+    ESP_LOGD(TAG, "Setting to normal work mode");
+    if (!set_work_mode_(MODE_NORMAL)) {
+      ESP_LOGE(TAG, "Failed to set normal mode");
+      break;
+    }
+
+    // Save configuration
+    ESP_LOGD(TAG, "Saving configuration");
+    if (!send_command_(CMD_SAVE_PARAMS)) {
+      ESP_LOGE(TAG, "Failed to save parameters");
+      break;
+    }
+
+    setup_success = true;
+  } while (0);
+
+  // Always try to exit config mode
+  if (!exit_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to exit config mode");
   }
 
-  // Set max distance (convert meters to decimeters)
-  uint32_t distance_dm = max_distance_ * 10;
-  if (!set_parameter_(PARAM_MAX_DISTANCE, distance_dm)) {
-    ESP_LOGE(TAG, "Failed to set max distance");
+  if (setup_success) {
+    ESP_LOGI(TAG, "Setup completed successfully");
+  } else {
+    ESP_LOGE(TAG, "Setup failed");
   }
-
-  // Set timeout
-  if (!set_parameter_(PARAM_TIMEOUT, timeout_)) {
-    ESP_LOGE(TAG, "Failed to set timeout");
-  }
-
-  // Set to normal working mode
-  if (!set_work_mode_(MODE_NORMAL)) {
-    ESP_LOGE(TAG, "Failed to set normal mode");
-  }
-
-  // Save configuration
-  if (!send_command_(CMD_SAVE_PARAMS)) {
-    ESP_LOGE(TAG, "Failed to save parameters");
-  }
-
-  exit_config_mode_();
 }
 
 void HLKLD2402Component::loop() {
+  static uint32_t last_byte_time = 0;
+  static const uint32_t TIMEOUT_MS = 100; // Reset buffer if no data for 100ms
+  
   while (available()) {
     uint8_t c;
     read_byte(&c);
+    last_byte_time = millis();
+    
+    // Log bytes for debugging
+    if (isprint(c)) {
+      ESP_LOGV(TAG, "Received byte: 0x%02X ('%c')", c, c);
+    } else {
+      ESP_LOGV(TAG, "Received byte: 0x%02X", c);
+    }
     
     if (c == '\n') {
       // Process complete line
       if (!line_buffer_.empty()) {
+        ESP_LOGD(TAG, "Complete line received: '%s'", line_buffer_.c_str());
         process_line_(line_buffer_);
         line_buffer_.clear();
       }
     } else if (c != '\r') {  // Skip \r
-      line_buffer_ += (char)c;
+      if (line_buffer_.length() < 1024) {
+        line_buffer_ += (char)c;
+      } else {
+        ESP_LOGW(TAG, "Buffer overflow, clearing");
+        line_buffer_.clear();
+      }
     }
+  }
+  
+  // Reset buffer if no data received for a while
+  if (!line_buffer_.empty() && (millis() - last_byte_time > TIMEOUT_MS)) {
+    ESP_LOGW(TAG, "Data timeout, clearing buffer: '%s'", line_buffer_.c_str());
+    line_buffer_.clear();
   }
 }
 
 void HLKLD2402Component::process_line_(const std::string &line) {
-  ESP_LOGV(TAG, "Processing line: '%s'", line.c_str());
+  ESP_LOGD(TAG, "Processing line: '%s'", line.c_str());
   
   if (line.compare(0, 9, "distance:") == 0) {
-    // Extract distance value
     std::string distance_str = line.substr(9);
-    ESP_LOGD(TAG, "Extracted distance string: '%s'", distance_str.c_str());
+    // Remove trailing " m" if present
+    size_t pos = distance_str.find(" m");
+    if (pos != std::string::npos) {
+      distance_str = distance_str.substr(0, pos);
+    }
+    
+    ESP_LOGV(TAG, "Parsing distance value: '%s'", distance_str.c_str());
     
     char *end;
     float distance = strtof(distance_str.c_str(), &end);
     
-    if (end != distance_str.c_str() && *end == '\0') {  // Successful conversion
-      ESP_LOGD(TAG, "Parsed distance value: %.0f cm", distance);
+    if (end != distance_str.c_str() && (*end == '\0' || *end == ' ')) {
+      // Convert meters to centimeters for ESPHome
+      distance = distance * 100;  // Convert to cm
+      ESP_LOGI(TAG, "Detected distance: %.2f cm", distance);
       
       if (this->distance_sensor_ != nullptr) {
-        ESP_LOGD(TAG, "Publishing distance: %.0f cm", distance);
         this->distance_sensor_->publish_state(distance);
-      } else {
-        ESP_LOGW(TAG, "Distance sensor not configured");
+        ESP_LOGI(TAG, "Published distance: %.2f cm", distance);
       }
       
       if (this->presence_binary_sensor_ != nullptr) {
-        ESP_LOGD(TAG, "Publishing presence: TRUE");
         this->presence_binary_sensor_->publish_state(true);
-      } else {
-        ESP_LOGW(TAG, "Presence sensor not configured");
+        ESP_LOGI(TAG, "Published presence: TRUE");
       }
     } else {
       ESP_LOGW(TAG, "Failed to parse distance value: '%s'", distance_str.c_str());
     }
   } else if (line == "OFF") {
-    ESP_LOGD(TAG, "Received OFF signal");
+    ESP_LOGI(TAG, "Received OFF signal - no target detected");
     if (this->presence_binary_sensor_ != nullptr) {
-      ESP_LOGD(TAG, "Publishing presence: FALSE");
       this->presence_binary_sensor_->publish_state(false);
-    } else {
-      ESP_LOGW(TAG, "Presence sensor not configured");
+      ESP_LOGI(TAG, "Published presence: FALSE");
     }
   } else {
     ESP_LOGW(TAG, "Unknown line format: '%s'", line.c_str());
@@ -120,12 +177,12 @@ bool HLKLD2402Component::send_command_(uint16_t command, const uint8_t *data, si
   // Header
   frame.insert(frame.end(), FRAME_HEADER, FRAME_HEADER + 4);
   
-  // Length (2 bytes)
-  uint16_t total_len = 2 + len;  // command (2 bytes) + data length
+  // Length (2 bytes) - command (2 bytes) + data length
+  uint16_t total_len = 2 + len;  // 2 for command, plus any additional data
   frame.push_back(total_len & 0xFF);
   frame.push_back((total_len >> 8) & 0xFF);
   
-  // Command (2 bytes)
+  // Command (2 bytes, little endian)
   frame.push_back(command & 0xFF);
   frame.push_back((command >> 8) & 0xFF);
   
@@ -137,10 +194,10 @@ bool HLKLD2402Component::send_command_(uint16_t command, const uint8_t *data, si
   // Footer
   frame.insert(frame.end(), FRAME_FOOTER, FRAME_FOOTER + 4);
   
+  ESP_LOGV(TAG, "Sending command 0x%04X with %d data bytes", command, len);
   dump_hex_(frame.data(), frame.size(), "TX");
-  write_array(frame.data(), frame.size());
   
-  return true;
+  return write_array(frame.data(), frame.size());
 }
 
 bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
@@ -186,6 +243,9 @@ bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
   }
   
   ESP_LOGW(TAG, "Response timeout");
+  if (!buffer.empty()) {
+    dump_hex_(buffer.data(), buffer.size(), "Incomplete RX");
+  }
   return false;
 }
 
@@ -204,19 +264,32 @@ bool HLKLD2402Component::enter_config_mode_() {
   if (config_mode_)
     return true;
     
-  uint8_t data[] = {0x01, 0x00};  // Enable configuration
-  if (!send_command_(CMD_ENABLE_CONFIG, data, sizeof(data)))
+  ESP_LOGD(TAG, "Entering config mode...");
+  
+  // Just send the command with no data
+  if (!send_command_(CMD_ENABLE_CONFIG)) {
+    ESP_LOGE(TAG, "Failed to send config mode command");
     return false;
+  }
     
   std::vector<uint8_t> response;
-  if (!read_response_(response))
+  if (!read_response_(response)) {
+    ESP_LOGE(TAG, "No response to config mode command");
     return false;
+  }
     
-  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
-    config_mode_ = true;
-    return true;
+  // The response should be: FF 01 00 00 02 00 20 00
+  if (response.size() >= 8) {
+    // Check if response indicates success (00 00 after FF 01)
+    if (response[0] == 0xFF && response[1] == 0x01 && 
+        response[2] == 0x00 && response[3] == 0x00) {
+      config_mode_ = true;
+      ESP_LOGI(TAG, "Successfully entered config mode");
+      return true;
+    }
   }
   
+  ESP_LOGE(TAG, "Invalid response to config mode command");
   return false;
 }
 
@@ -224,22 +297,32 @@ bool HLKLD2402Component::exit_config_mode_() {
   if (!config_mode_)
     return true;
     
-  if (!send_command_(CMD_DISABLE_CONFIG))
+  ESP_LOGD(TAG, "Exiting config mode...");
+  
+  if (!send_command_(CMD_DISABLE_CONFIG)) {
+    ESP_LOGE(TAG, "Failed to send exit config mode command");
     return false;
+  }
     
   std::vector<uint8_t> response;
-  if (!read_response_(response))
+  if (!read_response_(response)) {
+    ESP_LOGE(TAG, "No response to exit config mode command");
     return false;
+  }
     
   if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
     config_mode_ = false;
+    ESP_LOGI(TAG, "Successfully exited config mode");
     return true;
   }
   
+  ESP_LOGE(TAG, "Invalid response to exit config mode command");
   return false;
 }
 
 bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
+  ESP_LOGD(TAG, "Setting parameter 0x%04X to %u", param_id, value);
+  
   uint8_t data[6];
   data[0] = param_id & 0xFF;
   data[1] = (param_id >> 8) & 0xFF;
@@ -259,6 +342,8 @@ bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
 }
 
 bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
+  ESP_LOGD(TAG, "Getting parameter 0x%04X", param_id);
+  
   uint8_t data[2];
   data[0] = param_id & 0xFF;
   data[1] = (param_id >> 8) & 0xFF;
@@ -272,6 +357,7 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
     
   if (response.size() >= 6) {
     value = response[2] | (response[3] << 8) | (response[4] << 16) | (response[5] << 24);
+    ESP_LOGD(TAG, "Parameter 0x%04X value: %u", param_id, value);
     return true;
   }
   
@@ -279,8 +365,10 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
 }
 
 bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
+  ESP_LOGD(TAG, "Setting work mode to %u", mode);
+  
   uint8_t mode_data[6];
-  mode_data[0] = 0x00;  // Command value
+  mode_data[0] = 0x00;
   mode_data[1] = 0x00;
   mode_data[2] = mode & 0xFF;
   mode_data[3] = (mode >> 8) & 0xFF;
@@ -307,7 +395,6 @@ void HLKLD2402Component::calibrate() {
     return;
   }
   
-  // Default calibration parameters - 3.0 for all thresholds (multiplied by 10)
   uint8_t data[] = {
     0x1E, 0x00,  // Trigger threshold coefficient (3.0)
     0x1E, 0x00,  // Hold threshold coefficient (3.0)
@@ -317,7 +404,6 @@ void HLKLD2402Component::calibrate() {
   if (send_command_(CMD_START_CALIBRATION, data, sizeof(data))) {
     ESP_LOGI(TAG, "Started calibration");
     
-    // Poll calibration status until complete or timeout
     uint32_t start = millis();
     while ((millis() - start) < 30000) {  // 30 second timeout
       if (send_command_(CMD_GET_CALIBRATION_STATUS)) {
@@ -329,7 +415,7 @@ void HLKLD2402Component::calibrate() {
             break;
         }
       }
-      delay(1000);  // Check every second
+      delay(1000);
     }
   }
   
@@ -347,7 +433,7 @@ void HLKLD2402Component::save_config() {
   if (send_command_(CMD_SAVE_PARAMS)) {
     std::vector<uint8_t> response;
     if (read_response_(response) && response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
-      ESP_LOGI(TAG, "Configuration saved");
+      ESP_LOGI(TAG, "Configuration saved successfully");
     } else {
       ESP_LOGE(TAG, "Failed to save configuration");
     }
