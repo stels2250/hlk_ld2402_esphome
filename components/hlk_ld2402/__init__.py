@@ -55,9 +55,11 @@ SENSOR_PLATFORM_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
 })
 
-BINARY_SENSOR_PLATFORM_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+BINARY_SENSOR_PLATFORM_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
-})
+    cv.Required(CONF_NAME): cv.string,
+    cv.Optional(CONF_DEVICE_CLASS): cv.string,
+}).extend(cv.COMPONENT_SCHEMA)
 
 # Add these platform registration functions
 @SENSOR_PLATFORM_SCHEMA
@@ -70,9 +72,9 @@ async def sensor_to_code(config):
 async def binary_sensor_to_code(config):
     paren = await cg.get_variable(config[CONF_ID])
     var = await binary_sensor.new_binary_sensor(config)
-    if CONF_PRESENCE in config:
+    if config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_PRESENCE:
         cg.add(paren.set_presence_binary_sensor(var))
-    elif CONF_MICROMOVEMENT in config:
+    elif config.get(CONF_DEVICE_CLASS) == DEVICE_CLASS_MOTION:
         cg.add(paren.set_micromovement_binary_sensor(var))
 
 async def to_code(config):

@@ -35,27 +35,23 @@ binary_sensor:
   - platform: hlk_ld2402
     id: radar_presence
     name: "Radar Presence Detection"
-    presence:
-      id: radar_presence_binary
-      device_class: presence
+    presence: {}  # Empty dictionary required
 
   - platform: hlk_ld2402
     id: radar_micromovement
     name: "Radar Micromovement Detection"
-    micromovement:
-      id: radar_micromovement_binary
-      device_class: motion
+    micromovement: {}  # Empty dictionary required
 
 # Distance Sensor - Shows detected target distance
 sensor:
   - platform: hlk_ld2402
+    id: radar_distance
+    distance: {}  # Empty dictionary required
     name: "Radar Distance"
-    distance:
-      name: "Target Distance"
-      unit_of_measurement: "cm"
-      accuracy_decimals: 0
-      filters:
-        - throttle: 1s  # Only update once per second
+    unit_of_measurement: "cm"
+    accuracy_decimals: 0
+    filters:
+      - throttle: 1s
 
 # Optional test buttons
 button:
