@@ -11,6 +11,7 @@ external_components:
       url: https://github.com/mouldybread/hlk_ld2402_esphome
       ref: main
     components: [hlk_ld2402]
+    refresh: 0s
 sensor:
   - platform: custom
     lambda: |-
