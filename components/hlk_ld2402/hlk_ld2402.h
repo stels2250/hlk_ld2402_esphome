@@ -13,6 +13,18 @@ static const uint8_t FRAME_FOOTER[4] = {0x04, 0x03, 0x02, 0x01};
 static const uint8_t DATA_HEADER[4] = {0xF4, 0xF3, 0xF2, 0xF1};
 static const uint8_t DATA_FOOTER[4] = {0xF8, 0xF7, 0xF6, 0xF5};
 
+// Command constants
+static const uint16_t CMD_GET_VERSION = 0x0000;
+static const uint16_t CMD_ENABLE_CONFIG = 0x00FF;
+static const uint16_t CMD_DISABLE_CONFIG = 0x00FE;
+static const uint16_t CMD_GET_SN_HEX = 0x0016;
+static const uint16_t CMD_GET_SN_CHAR = 0x0011;
+static const uint16_t CMD_READ_PARAMS = 0x0008;
+static const uint16_t CMD_SET_PARAMS = 0x0007;
+static const uint16_t CMD_SET_MODE = 0x0012;
+static const uint16_t CMD_SAVE_PARAMS = 0x00FD;
+static const uint16_t CMD_AUTO_GAIN = 0x00EE;
+
 class HLKLD2402Component;  // Forward declaration
 
 class HLKLD2402DistanceSensor : public sensor::Sensor, public Component {
@@ -51,14 +63,25 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
 
  protected:
   bool send_command_(uint16_t command, const std::vector<uint8_t> &data = {});
+  bool wait_for_response_(uint16_t command, uint32_t timeout_ms = 1000);
   void process_data_(const std::vector<uint8_t> &data);
-  bool check_frame_header_(const std::vector<uint8_t> &data, size_t offset = 0);
-  bool check_frame_footer_(const std::vector<uint8_t> &data, size_t offset = 0);
-  bool check_data_header_(const std::vector<uint8_t> &data, size_t offset = 0);
-  bool check_data_footer_(const std::vector<uint8_t> &data, size_t offset = 0);
+  bool check_frame_header_(const std::vector<uint8_t> &data, size_t offset = 0) {
+    return data.size() >= offset + 4 && memcmp(&data[offset], FRAME_HEADER, 4) == 0;
+  }
+  bool check_frame_footer_(const std::vector<uint8_t> &data, size_t offset = 0) {
+    return data.size() >= offset + 4 && memcmp(&data[offset], FRAME_FOOTER, 4) == 0;
+  }
+  bool check_data_header_(const std::vector<uint8_t> &data, size_t offset = 0) {
+    return data.size() >= offset + 4 && memcmp(&data[offset], DATA_HEADER, 4) == 0;
+  }
+  bool check_data_footer_(const std::vector<uint8_t> &data, size_t offset = 0) {
+    return data.size() >= offset + 4 && memcmp(&data[offset], DATA_FOOTER, 4) == 0;
+  }
   bool enable_configuration_();
   bool disable_configuration_();
   bool set_work_mode_(uint32_t mode);
+  bool save_configuration_();
+  bool auto_gain_calibration_();
 
   float max_distance_{8.5f};
   uint16_t disappear_delay_{30};
@@ -69,6 +92,8 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   binary_sensor::BinarySensor *micromovement_sensor_{nullptr};
   std::vector<uint8_t> buffer_;
   bool configuration_mode_{false};
+  bool last_command_success_{false};
+  uint16_t last_command_{0};
 };
 
 }  // namespace hlk_ld2402
