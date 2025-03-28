@@ -13,19 +13,23 @@ binary_sensor:
     id: radar_presence
     name: "${friendly_name} Presence"
     device_class: presence
+    hlk_ld2402_id: radar_sensor
 
   - platform: hlk_ld2402
     id: radar_micromovement
     name: "${friendly_name} Micromovement"
     device_class: motion
+    hlk_ld2402_id: radar_sensor
 
 # Distance sensor
 sensor:
   - platform: hlk_ld2402
     id: radar_distance
     name: "${friendly_name} Distance"
+    hlk_ld2402_id: radar_sensor
+    device_class: distance
     unit_of_measurement: "cm"
-    accuracy_decimals: 0
+    accuracy_decimals: 1
     filters:
       - throttle: 1s
 

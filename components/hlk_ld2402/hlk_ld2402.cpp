@@ -27,6 +27,8 @@ void HLKLD2402Component::setup() {
   // Check power interference
   check_power_interference();
 
+  bool setup_success = false;  // Add this missing variable
+  
   // Continue with normal setup
   do {
     // Get firmware version
