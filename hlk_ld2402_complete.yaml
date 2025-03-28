@@ -67,7 +67,7 @@ button:
   - platform: template
     name: "Engineering Mode"
     on_press:
-      - lambda: id(radar_sensor).set_work_mode_(4);
+      - lambda: id(radar_sensor).set_engineering_mode();
 
 # Add status LED if available
 status_led:

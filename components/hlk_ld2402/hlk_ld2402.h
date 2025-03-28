@@ -78,6 +78,11 @@ public:
   void save_config();
   void enable_auto_gain();
   void check_power_interference();
+  
+  // Add a new public method to set the work mode
+  void set_engineering_mode() {
+    set_work_mode_(MODE_ENGINEERING);
+  }
 
 protected:
   bool enter_config_mode_();
