@@ -15,6 +15,7 @@ logger:
 
 # UART Configuration (from manual)
 uart:
+  id: uart_bus
   tx_pin: GPIO1  # TX0 hardware UART
   rx_pin: GPIO3  # RX0 hardware UART
 
@@ -26,6 +27,7 @@ uart:
 
 # HLK-LD2402 configuration
 hlk_ld2402:
+  uart_id: uart_bus
   id: radar_sensor
   max_distance: 5.0  # in meters, default is 5m
   timeout: 5        # in seconds, default is 5s
