@@ -9,31 +9,26 @@ static const char *const TAG = "hlk_ld2402";
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
   
-  // Get the UART parent and configure through it
-  auto *parent = (esphome::uart::UARTComponent *) this->parent_;
-  parent->set_baud_rate(UART_BAUD_RATE);
-  parent->set_stop_bits(UART_STOP_BITS);
-  parent->set_data_bits(UART_DATA_BITS);
-  parent->set_parity(UART_PARITY);
+  // Configure UART
+  auto *parent = (uart::UARTComponent *) this->parent_;
+  parent->set_baud_rate(115200);
+  parent->set_stop_bits(1);
+  parent->set_data_bits(8);
+  parent->set_parity(UART_CONFIG_PARITY_NONE);
 
-  if (max_distance_ > MAX_THEORETICAL_RANGE) {
-    ESP_LOGW(TAG, "Max distance %.1f exceeds theoretical maximum, clamping to %.1f", 
-             max_distance_, MAX_THEORETICAL_RANGE);
-    max_distance_ = MAX_THEORETICAL_RANGE;
-  }
-
-  ESP_LOGD(TAG, "Max distance: %.1f m, Timeout: %u s", max_distance_, timeout_);
-  
-  bool setup_success = false;
-  
   if (!enter_config_mode_()) {
     ESP_LOGE(TAG, "Failed to enter config mode");
     return;
   }
 
+  // Enable auto gain first
+  enable_auto_gain();
+  
+  // Check power interference
+  check_power_interference();
+
+  // Continue with normal setup
   do {
-    ESP_LOGD(TAG, "Entered config mode successfully");
-    
     // Get firmware version
     std::vector<uint8_t> response;
     if (send_command_(CMD_GET_VERSION) && read_response_(response)) {
@@ -65,6 +60,17 @@ void HLKLD2402Component::setup() {
       break;
     }
 
+    // Set thresholds based on documented ranges
+    if (!set_parameter_(PARAM_TRIGGER_THRESHOLD, db_to_threshold_(3.0))) {
+      ESP_LOGE(TAG, "Failed to set trigger threshold");
+      break;
+    }
+
+    if (!set_parameter_(PARAM_MICRO_THRESHOLD, db_to_threshold_(3.0))) {
+      ESP_LOGE(TAG, "Failed to set micro threshold");
+      break;
+    }
+
     // Set to normal working mode
     ESP_LOGD(TAG, "Setting to normal work mode");
     if (!set_work_mode_(MODE_NORMAL)) {
@@ -73,25 +79,12 @@ void HLKLD2402Component::setup() {
     }
 
     // Save configuration
-    ESP_LOGD(TAG, "Saving configuration");
-    if (!send_command_(CMD_SAVE_PARAMS)) {
-      ESP_LOGE(TAG, "Failed to save parameters");
-      break;
-    }
+    save_config();
 
     setup_success = true;
   } while (0);
 
-  // Always try to exit config mode
-  if (!exit_config_mode_()) {
-    ESP_LOGE(TAG, "Failed to exit config mode");
-  }
-
-  if (setup_success) {
-    ESP_LOGI(TAG, "Setup completed successfully");
-  } else {
-    ESP_LOGE(TAG, "Setup failed");
-  }
+  exit_config_mode_();
 }
 
 void HLKLD2402Component::loop() {
@@ -125,52 +118,47 @@ void HLKLD2402Component::loop() {
 }
 
 void HLKLD2402Component::process_line_(const std::string &line) {
-  ESP_LOGV(TAG, "Processing line: '%s'", line.c_str());  // Changed from LOGD to LOGV
-  
   if (line == "OFF") {
-    ESP_LOGD(TAG, "No target detected");
     if (this->presence_binary_sensor_ != nullptr) {
       this->presence_binary_sensor_->publish_state(false);
     }
     if (this->micromovement_binary_sensor_ != nullptr) {
       this->micromovement_binary_sensor_->publish_state(false);
     }
-  } else if (line.compare(0, 9, "distance:") == 0) {
+    if (this->distance_sensor_ != nullptr) {
+      this->distance_sensor_->publish_state(0);
+    }
+    return;
+  }
+
+  if (line.compare(0, 9, "distance:") == 0) {
     std::string distance_str = line.substr(9);
-    // Remove trailing " m" if present
     size_t pos = distance_str.find(" m");
     if (pos != std::string::npos) {
       distance_str = distance_str.substr(0, pos);
     }
     
-    ESP_LOGV(TAG, "Parsing distance value: '%s'", distance_str.c_str());
-    
     char *end;
     float distance = strtof(distance_str.c_str(), &end);
     
     if (end != distance_str.c_str() && (*end == '\0' || *end == ' ')) {
-      // Convert meters to centimeters for ESPHome
       distance = distance * 100;  // Convert to cm
-      ESP_LOGD(TAG, "Detected distance: %.2f cm", distance);  // Changed from LOGI to LOGD
       
       if (this->distance_sensor_ != nullptr) {
         this->distance_sensor_->publish_state(distance);
+      }
+      
+      // Update presence states based on documented ranges
+      if (this->presence_binary_sensor_ != nullptr) {
+        bool is_presence = distance <= (STATIC_RANGE * 100);
+        this->presence_binary_sensor_->publish_state(is_presence);
       }
       
       if (this->micromovement_binary_sensor_ != nullptr) {
         bool is_micro = distance <= (MICROMOVEMENT_RANGE * 100);
         this->micromovement_binary_sensor_->publish_state(is_micro);
       }
-      
-      if (this->presence_binary_sensor_ != nullptr) {
-        bool is_presence = distance <= (STATIC_RANGE * 100);
-        this->presence_binary_sensor_->publish_state(is_presence);
-      }
-    } else {
-      ESP_LOGW(TAG, "Failed to parse distance value: '%s'", distance_str.c_str());
     }
-  } else {
-    ESP_LOGW(TAG, "Unknown line format: '%s'", line.c_str());
   }
 }
 
@@ -501,6 +489,24 @@ void HLKLD2402Component::enable_auto_gain() {
   }
   
   exit_config_mode_();
+}
+
+void HLKLD2402Component::check_power_interference() {
+  uint32_t value;
+  if (get_parameter_(PARAM_POWER_INTERFERENCE, value)) {
+    power_interference_detected_ = (value == 2);
+    if (power_interference_detected_) {
+      ESP_LOGW(TAG, "Power interference detected!");
+    }
+  }
+}
+
+uint32_t HLKLD2402Component::db_to_threshold_(float db_value) {
+  return static_cast<uint32_t>(pow(10, db_value / 10));
+}
+
+float HLKLD2402Component::threshold_to_db_(uint32_t threshold) {
+  return 10 * log10(threshold);
 }
 
 }  // namespace hlk_ld2402

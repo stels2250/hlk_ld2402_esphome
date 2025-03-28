@@ -1,0 +1,56 @@
+# Common HLK-LD2402 configuration to be included from GitHub
+
+# Default component configuration
+hlk_ld2402:
+  uart_id: uart_bus
+  id: radar_sensor
+  max_distance: 5.0
+  timeout: 5
+
+# Binary sensors
+binary_sensor:
+  - platform: hlk_ld2402
+    id: radar_presence
+    name: "${friendly_name} Presence"
+    device_class: presence
+
+  - platform: hlk_ld2402
+    id: radar_micromovement
+    name: "${friendly_name} Micromovement"
+    device_class: motion
+
+# Distance sensor
+sensor:
+  - platform: hlk_ld2402
+    id: radar_distance
+    name: "${friendly_name} Distance"
+    unit_of_measurement: "cm"
+    accuracy_decimals: 0
+    filters:
+      - throttle: 1s
+
+# Control buttons
+button:
+  - platform: template
+    name: "${friendly_name} Calibrate"
+    on_press:
+      then:
+        - lambda: id(radar_sensor).calibrate();
+
+  - platform: template
+    name: "${friendly_name} Auto Gain"
+    on_press:
+      then:
+        - lambda: id(radar_sensor).enable_auto_gain();
+
+  - platform: template
+    name: "${friendly_name} Save Config"
+    on_press:
+      then:
+        - lambda: id(radar_sensor).save_config();
+
+  - platform: template
+    name: "${friendly_name} Engineering Mode"
+    on_press:
+      then:
+        - lambda: id(radar_sensor).set_work_mode_(0x04);

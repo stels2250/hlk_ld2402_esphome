@@ -45,11 +45,11 @@ CONFIG_SCHEMA = cv.Schema({
         device_class=DEVICE_CLASS_DISTANCE,
         state_class=STATE_CLASS_MEASUREMENT,
         unit_of_measurement=UNIT_CENTIMETER,
-        accuracy_decimals=0,
+        accuracy_decimals=1,  # Update to match ±0.15m precision
     ),
     cv.Optional(CONF_PRESENCE): BINARY_SENSOR_SCHEMA,
     cv.Optional(CONF_MICROMOVEMENT): BINARY_SENSOR_SCHEMA,
-    cv.Optional(CONF_MAX_DISTANCE, default=10.0): cv.float_range(min=0.7, max=10.0),
+    cv.Optional(CONF_MAX_DISTANCE, default=5.0): cv.float_range(min=0.7, max=10.0),
     cv.Optional(CONF_TIMEOUT, default=5): cv.int_range(min=0, max=65535),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 

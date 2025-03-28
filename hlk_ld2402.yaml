@@ -1,4 +1,9 @@
-# UART Configuration (from manual)
+# THIS FILE SHOULD NOT BE MODIFIED.
+# Include base configuration
+packages:
+  hlk_ld2402: github://mouldybread/hlk_ld2402_esphome/hlk_ld2402_base.yaml@main
+
+# Local UART configuration
 uart:
   id: uart_bus
   tx_pin: GPIO1  # TX0 hardware UART
@@ -8,68 +13,10 @@ uart:
   parity: NONE
   stop_bits: 1
 
-# HLK-LD2402 configuration
+# Device-specific overrides (optional)
 hlk_ld2402:
   uart_id: uart_bus
   id: radar_sensor
-  max_distance: 5.0  # in meters, default is 5m
-  timeout: 5        # in seconds, default is 5s
-  presence:
-    id: radar_presence
-    name: "Radar Presence Detection"
-    device_class: presence
-  micromovement:
-    id: radar_micromovement
-    name: "Radar Micromovement Detection"
-    device_class: motion
-
-# Binary Sensor - Shows if motion/presence is detected
-binary_sensor:
-  - platform: "hlk_ld2402"
-    id: "radar_presence"
-    name: "Radar Presence Detection"
-    device_class: "presence"
-
-  - platform: "hlk_ld2402"
-    id: "radar_micromovement"
-    name: "Radar Micromovement Detection"
-    device_class: "motion"
-
-# Distance Sensor - Shows detected target distance
-sensor:
-  - platform: "hlk_ld2402"
-    id: "radar_distance"
-    name: "Radar Distance"
-    unit_of_measurement: "cm"
-    accuracy_decimals: 0
-    filters:
-      - throttle: 1s
-
-# Optional test buttons
-button:
-  - platform: template
-    name: "Radar Calibrate"
-    on_press:
-      then:
-        - lambda: id(radar_sensor).calibrate();
-
-  - platform: template
-    name: "Enable Auto Gain"
-    on_press:
-      then:
-        - lambda: id(radar_sensor).enable_auto_gain();
-
-  - platform: template
-    name: "Save Config"
-    on_press:
-      then:
-        - lambda: id(radar_sensor).save_config();
-
-  - platform: template
-    name: "Engineering Mode"
-    on_press:
-      then:
-        - lambda: |-
-            auto *parent = (esphome::uart::UARTComponent *) id(radar_sensor).parent_;
-            id(radar_sensor).set_work_mode_(0x04);  # MODE_ENGINEERING for testing
+  max_distance: 5.0  # in meters, override default if needed
+  timeout: 5        # in seconds, override default if needed
 
