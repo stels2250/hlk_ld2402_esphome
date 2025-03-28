@@ -4,7 +4,7 @@ from esphome.components import uart, sensor, binary_sensor
 from esphome.const import (
     CONF_ID,
     CONF_NAME,
-    CONF_DEVICE_CLASS,  # Add this
+    CONF_DEVICE_CLASS,
     CONF_DISTANCE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_PRESENCE,
@@ -32,23 +32,28 @@ CONF_MAX_DISTANCE = "max_distance"
 CONF_TIMEOUT = "timeout"
 CONF_UART_ID = "uart_id"
 
-BINARY_SENSOR_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
-    cv.Required(CONF_NAME): cv.string,
-    cv.Optional(CONF_DEVICE_CLASS): cv.one_of("presence", "motion", lower=True),
-})
+# Fix sensor schema definitions
+SENSOR_SCHEMA = sensor.sensor_schema(
+    device_class=DEVICE_CLASS_DISTANCE,
+    state_class=STATE_CLASS_MEASUREMENT,
+    unit_of_measurement=UNIT_CENTIMETER,
+    accuracy_decimals=1,
+)
+
+BINARY_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema(
+    device_class=cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_MOTION),
+)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
     cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-    cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
-        device_class=DEVICE_CLASS_DISTANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-        unit_of_measurement=UNIT_CENTIMETER,
-        accuracy_decimals=1,  # Update to match ±0.15m precision
-    ),
-    cv.Optional(CONF_PRESENCE): BINARY_SENSOR_SCHEMA,
-    cv.Optional(CONF_MICROMOVEMENT): BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_DISTANCE): SENSOR_SCHEMA,
+    cv.Optional(CONF_PRESENCE): BINARY_SENSOR_SCHEMA.extend({
+        cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_PRESENCE): cv.string,
+    }),
+    cv.Optional(CONF_MICROMOVEMENT): BINARY_SENSOR_SCHEMA.extend({
+        cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_MOTION): cv.string,
+    }),
     cv.Optional(CONF_MAX_DISTANCE, default=5.0): cv.float_range(min=0.7, max=10.0),
     cv.Optional(CONF_TIMEOUT, default=5): cv.int_range(min=0, max=65535),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
