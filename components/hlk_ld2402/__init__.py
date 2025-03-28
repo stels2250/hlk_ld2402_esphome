@@ -31,6 +31,7 @@ CONF_TIMEOUT = "timeout"
 CONF_UART_ID = "uart_id"
 CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 
+# Component schema
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
     cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
@@ -48,13 +49,35 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-# Sensor registration
-async def sensor_to_code(config):
+# Define platform schemas
+SENSOR_SCHEMA = cv.Schema({
+    cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    cv.Required(CONF_NAME): cv.string,
+}).extend(sensor.sensor_schema(
+    device_class=DEVICE_CLASS_DISTANCE,
+    state_class=STATE_CLASS_MEASUREMENT,
+    unit_of_measurement=UNIT_CENTIMETER,
+    accuracy_decimals=1,
+))
+
+BINARY_SENSOR_SCHEMA = cv.Schema({
+    cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    cv.Required(CONF_NAME): cv.string,
+    cv.Required(CONF_DEVICE_CLASS): cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
+}).extend(cv.COMPONENT_SCHEMA)
+
+# Sensor platform registration functions
+@sensor.register_sensor(
+    sensor.PLATFORM_SCHEMA.extend(SENSOR_SCHEMA),
+)
+async def distance_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await sensor.new_sensor(config)
     cg.add(parent.set_distance_sensor(var))
 
-# Binary sensor registration
+@binary_sensor.register_binary_sensor(
+    binary_sensor.PLATFORM_SCHEMA.extend(BINARY_SENSOR_SCHEMA),
+)
 async def binary_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await binary_sensor.new_binary_sensor(config)
@@ -62,27 +85,3 @@ async def binary_sensor_to_code(config):
         cg.add(parent.set_presence_binary_sensor(var))
     elif config[CONF_DEVICE_CLASS] == DEVICE_CLASS_MOTION:
         cg.add(parent.set_micromovement_binary_sensor(var))
-
-# Platform registration
-sensor.register_sensor(
-    "hlk_ld2402",
-    sensor.sensor_schema(
-        device_class=DEVICE_CLASS_DISTANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-        unit_of_measurement=UNIT_CENTIMETER,
-        accuracy_decimals=1,
-    ).extend({
-        cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    }),
-    sensor_to_code,
-)
-
-binary_sensor.register_binary_sensor(
-    "hlk_ld2402",
-    binary_sensor.binary_sensor_schema(
-        device_class=cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
-    ).extend({
-        cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    }),
-    binary_sensor_to_code,
-)
