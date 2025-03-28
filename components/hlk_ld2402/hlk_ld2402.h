@@ -45,7 +45,7 @@ static const uint16_t PARAM_POWER_INTERFERENCE = 0x0005; // Power interference s
 static const uint32_t UART_BAUD_RATE = 115200;
 static const uint8_t UART_STOP_BITS = 1;
 static const uint8_t UART_DATA_BITS = 8;
-static const uint8_t UART_PARITY = esphome::uart::UART_CONFIG_PARITY_NONE;
+static const esphome::uart::UARTParityOptions UART_PARITY = esphome::uart::UART_CONFIG_PARITY_NONE;
 
 // Constants from manual
 static constexpr float MAX_THEORETICAL_RANGE = 10.0f;  // Max 10m for movement
