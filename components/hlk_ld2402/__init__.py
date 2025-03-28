@@ -11,6 +11,8 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     STATE_CLASS_MEASUREMENT,
     UNIT_CENTIMETER,
+    CONF_UNIT_OF_MEASUREMENT,  # Add this import
+    CONF_ACCURACY_DECIMALS,    # Add this import too
 )
 
 DEPENDENCIES = ["uart"]
@@ -64,7 +66,7 @@ SENSOR_PLATFORM_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.string,
     cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_DISTANCE): cv.string,
     cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=UNIT_CENTIMETER): cv.string,
-    cv.Optional(cv.CONF_ACCURACY_DECIMALS, default=1): cv.int_range(min=0, max=2),
+    cv.Optional(CONF_ACCURACY_DECIMALS, default=1): cv.int_range(min=0, max=2),
 }).extend(cv.COMPONENT_SCHEMA)
 
 BINARY_SENSOR_PLATFORM_SCHEMA = cv.Schema({
