@@ -10,20 +10,25 @@ uart:
   rx_pin: GPIO3
   baud_rate: 115200
 
+hlk_ld2402:
+  id: radar_sensor
+  max_distance: 8.5
+  disappear_delay: 30
+
+sensor:
+  - platform: hlk_ld2402
+    id: radar_distance
+    distance:
+      name: "Radar Distance"
+
 binary_sensor:
   - platform: hlk_ld2402
     presence:
       name: "Radar Presence"
+      id: radar_presence
     movement:
       name: "Radar Movement"
+      id: radar_movement
     micromovement:
       name: "Radar Micro Movement"
-
-sensor:
-  - platform: hlk_ld2402
-    distance:
-      name: "Radar Distance"
-      filters:
-        - sliding_window_moving_average:
-            window_size: 5
-            send_every: 1
+      id: radar_micromovement
