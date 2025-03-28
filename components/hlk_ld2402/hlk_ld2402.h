@@ -1,31 +1,12 @@
 #pragma once
 
-#include "esphome.h"
+#include "esphome/core/component.h"
+#include "esphome/components/uart/uart.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
 namespace hlk_ld2402 {
-
-class HLKLD2402Component;  // Forward declaration
-
-class HLKLD2402DistanceSensor : public sensor::Sensor, public Component {
- public:
-  void set_parent(HLKLD2402Component *parent) { parent_ = parent; }
-  void setup() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
- protected:
-  HLKLD2402Component *parent_;
-};
-
-class HLKLD2402BinarySensor : public binary_sensor::BinarySensor, public Component {
- public:
-  void set_parent(HLKLD2402Component *parent) { parent_ = parent; }
-  void set_type(const std::string &type) { type_ = type; }
-  void setup() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
- protected:
-  HLKLD2402Component *parent_;
-  std::string type_;
-};
 
 class HLKLD2402Component : public Component, public uart::UARTDevice {
  public:
@@ -53,6 +34,26 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   binary_sensor::BinarySensor *movement_sensor_{nullptr};
   binary_sensor::BinarySensor *micromovement_sensor_{nullptr};
   std::vector<uint8_t> buffer_;
+};
+
+class HLKLD2402DistanceSensor : public sensor::Sensor, public Component {
+ public:
+  void set_parent(HLKLD2402Component *parent) { parent_ = parent; }
+  void setup() override;
+  float get_setup_priority() const override { return setup_priority::DATA; }
+ protected:
+  HLKLD2402Component *parent_;
+};
+
+class HLKLD2402BinarySensor : public binary_sensor::BinarySensor, public Component {
+ public:
+  void set_parent(HLKLD2402Component *parent) { parent_ = parent; }
+  void set_type(const std::string &type) { type_ = type; }
+  void setup() override;
+  float get_setup_priority() const override { return setup_priority::DATA; }
+ protected:
+  HLKLD2402Component *parent_;
+  std::string type_;
 };
 
 }  // namespace hlk_ld2402
