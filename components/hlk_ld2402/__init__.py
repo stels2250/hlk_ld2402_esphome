@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import uart, sensor, binary_sensor
 from esphome.const import (
     CONF_ID,
+    CONF_NAME,  # Add this
     CONF_DISTANCE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_PRESENCE,
@@ -33,18 +34,18 @@ CONF_UART_ID = "uart_id"
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
     cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-    cv.Optional(CONF_DISTANCE): cv.Schema({
-        cv.Optional(CONF_NAME): cv.string,
-        cv.Optional(CONF_ID): cv.declare_id(sensor.Sensor),
-    }),
-    cv.Optional(CONF_PRESENCE): cv.Schema({
-        cv.Optional(CONF_NAME): cv.string,
-        cv.Optional(CONF_ID): cv.declare_id(binary_sensor.BinarySensor),
-    }),
-    cv.Optional(CONF_MICROMOVEMENT): cv.Schema({
-        cv.Optional(CONF_NAME): cv.string,
-        cv.Optional(CONF_ID): cv.declare_id(binary_sensor.BinarySensor),
-    }),
+    cv.Optional(CONF_DISTANCE): sensor.sensor_schema(
+        device_class=DEVICE_CLASS_DISTANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_CENTIMETER,
+        accuracy_decimals=0,
+    ),
+    cv.Optional(CONF_PRESENCE): binary_sensor.binary_sensor_schema(
+        device_class=DEVICE_CLASS_PRESENCE,
+    ),
+    cv.Optional(CONF_MICROMOVEMENT): binary_sensor.binary_sensor_schema(
+        device_class=DEVICE_CLASS_MOTION,
+    ),
     cv.Optional(CONF_MAX_DISTANCE, default=10.0): cv.float_range(min=0.7, max=10.0),
     cv.Optional(CONF_TIMEOUT, default=5): cv.int_range(min=0, max=65535),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
