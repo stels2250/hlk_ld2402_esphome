@@ -7,11 +7,13 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_METER,
 )
-from .. import hlk_ld2402_ns, HLKLD2402Component
+from esphome.components.hlk_ld2402 import (
+    hlk_ld2402_ns, 
+    HLKLD2402Component,
+    CONF_HLK_LD2402_ID
+)
 
 DEPENDENCIES = ['hlk_ld2402']
-
-CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 
 HLKLD2402DistanceSensor = hlk_ld2402_ns.class_(
     "HLKLD2402DistanceSensor",

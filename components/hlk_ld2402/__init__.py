@@ -7,11 +7,14 @@ CODEOWNERS = ["@mouldybread"]
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "binary_sensor"]
 
+# Create the namespace
 hlk_ld2402_ns = cg.esphome_ns.namespace("hlk_ld2402")
 HLKLD2402Component = hlk_ld2402_ns.class_(
     "HLKLD2402Component", cg.Component, uart.UARTDevice
 )
 
+# Define constants that will be used across components
+CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 CONF_MAX_DISTANCE = "max_distance"
 CONF_DISAPPEAR_DELAY = "disappear_delay"
 
