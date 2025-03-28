@@ -13,7 +13,6 @@ from esphome.const import (
     UNIT_CENTIMETER,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_ACCURACY_DECIMALS,
-    CONF_PLATFORM,
 )
 
 DEPENDENCIES = ["uart"]
@@ -50,8 +49,8 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-# Define platform schemas without overriding global schemas
-DISTANCE_SENSOR_SCHEMA = sensor.sensor_schema(
+# Define sensor schema with to_code function embedded
+SENSOR_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_CENTIMETER,
     accuracy_decimals=1,
     device_class=DEVICE_CLASS_DISTANCE,
@@ -60,17 +59,18 @@ DISTANCE_SENSOR_SCHEMA = sensor.sensor_schema(
     cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
 })
 
+async def to_code_sensor(config):
+    parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
+    var = await sensor.new_sensor(config)
+    cg.add(parent.set_distance_sensor(var))
+
+# Define binary sensor schema with to_code function embedded
 BINARY_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema().extend({
     cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
     cv.Required(CONF_DEVICE_CLASS): cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
 })
 
-async def hlk_ld2402_sensor_to_code(config):
-    parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
-    var = await sensor.new_sensor(config)
-    cg.add(parent.set_distance_sensor(var))
-
-async def hlk_ld2402_binary_sensor_to_code(config):
+async def to_code_binary_sensor(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await binary_sensor.new_binary_sensor(config)
     if config[CONF_DEVICE_CLASS] == DEVICE_CLASS_PRESENCE:
@@ -78,15 +78,15 @@ async def hlk_ld2402_binary_sensor_to_code(config):
     elif config[CONF_DEVICE_CLASS] == DEVICE_CLASS_MOTION:
         cg.add(parent.set_micromovement_binary_sensor(var))
 
-# Register platforms properly - use function call style instead of decorators
-sensor.register_sensor(
-    "hlk_ld2402",
-    DISTANCE_SENSOR_SCHEMA,
-    hlk_ld2402_sensor_to_code,
-)
+# Register platforms (only 2 arguments)
+sensor.SENSOR_SCHEMA = SENSOR_SCHEMA
+sensor.CONF_ACTION_ID = CONF_HLK_LD2402_ID
+sensor.CONF_ACTION_ENTITY_ID = CONF_HLK_LD2402_ID
 
-binary_sensor.register_binary_sensor(
-    "hlk_ld2402",
-    BINARY_SENSOR_SCHEMA,
-    hlk_ld2402_binary_sensor_to_code,
-)
+binary_sensor.BINARY_SENSOR_SCHEMA = BINARY_SENSOR_SCHEMA
+binary_sensor.CONF_ACTION_ID = CONF_HLK_LD2402_ID
+binary_sensor.CONF_ACTION_ENTITY_ID = CONF_HLK_LD2402_ID
+
+# Register platform handlers
+sensor.register_sensor("hlk_ld2402", to_code_sensor)
+binary_sensor.register_binary_sensor("hlk_ld2402", to_code_binary_sensor)
