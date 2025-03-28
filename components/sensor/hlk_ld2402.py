@@ -8,26 +8,32 @@ from esphome.const import (
     CONF_ICON,
     CONF_DEVICE_CLASS
 )
-from esphome import automation
 from .. import hlk_ld2402_ns, HLKLD2402Component
 
 DEPENDENCIES = ['hlk_ld2402']
 AUTO_LOAD = ['hlk_ld2402']
 
 CONF_HLK_LD2402_ID = "hlk_ld2402_id"
+CONF_DISTANCE = "distance"
 
-# Sensor class with all required functionality
-HLKLD2402Sensor = hlk_ld2402_ns.class_(
-    "HLKLD2402Sensor", 
-    sensor.Sensor, 
-    cg.PollingComponent,
+HLKLD2402DistanceSensor = hlk_ld2402_ns.class_(
+    "HLKLD2402DistanceSensor",
+    sensor.Sensor,
+    cg.Component,
     cg.Parented.template(HLKLD2402Component)
 )
 
-# Configuration schema with all options
-CONFIG_SCHEMA = cv.All(
+def validate_distance_sensor(config):
+    # Ensure required fields are present
+    if CONF_UNIT_OF_MEASUREMENT not in config:
+        config[CONF_UNIT_OF_MEASUREMENT] = "m"
+    if CONF_ACCURACY_DECIMALS not in config:
+        config[CONF_ACCURACY_DECIMALS] = 2
+    return config
+
+DISTANCE_SCHEMA = cv.All(
     sensor.sensor_schema(
-        HLKLD2402Sensor,
+        HLKLD2402DistanceSensor,
         unit_of_measurement="m",
         accuracy_decimals=2,
         icon="mdi:radar",
@@ -42,25 +48,28 @@ CONFIG_SCHEMA = cv.All(
             })
         }))
     }),
-    cv.has_at_least_one_key(CONF_UNIT_OF_MEASUREMENT, CONF_ICON, CONF_DEVICE_CLASS)
-).extend(cv.polling_component_schema('60s'))
+    validate_distance_sensor
+)
+
+CONFIG_SCHEMA = cv.Schema({
+    cv.Required(CONF_DISTANCE): DISTANCE_SCHEMA,
+})
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
+    conf = config[CONF_DISTANCE]
+    var = cg.new_Pvariable(conf[CONF_ID])
+    await cg.register_component(var, conf)
+    await sensor.register_sensor(var, conf)
     
-    # Add parent reference
-    parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
+    parent = await cg.get_variable(conf[CONF_HLK_LD2402_ID])
     cg.add(var.set_parent(parent))
     
-    # Add filters if specified
-    if "filters" in config:
-        for filt in config["filters"]:
+    if "filters" in conf:
+        for filt in conf["filters"]:
             if "sliding_window_moving_average" in filt:
-                conf = filt["sliding_window_moving_average"]
+                fconf = filt["sliding_window_moving_average"]
                 cg.add(var.add_filter_sliding_window_moving_average(
-                    conf["window_size"],
-                    conf["send_every"],
-                    conf["send_first_at"]
+                    fconf["window_size"],
+                    fconf["send_every"],
+                    fconf["send_first_at"]
                 ))

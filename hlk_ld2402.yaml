@@ -17,15 +17,16 @@ hlk_ld2402:
 
 sensor:
   - platform: hlk_ld2402
-    name: "Radar Distance"
-    id: radar_distance
-    hlk_ld2402_id: radar_sensor
-    unit_of_measurement: "m"
-    accuracy_decimals: 2
-    filters:
-      - sliding_window_moving_average:
-          window_size: 5
-          send_every: 1
+    distance:
+      name: "Radar Distance"
+      id: radar_distance
+      hlk_ld2402_id: radar_sensor
+      unit_of_measurement: "m"
+      accuracy_decimals: 2
+      filters:
+        - sliding_window_moving_average:
+            window_size: 5
+            send_every: 1
 
 binary_sensor:
   - platform: hlk_ld2402
