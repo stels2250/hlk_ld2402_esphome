@@ -32,6 +32,12 @@ CONF_MAX_DISTANCE = "max_distance"
 CONF_TIMEOUT = "timeout"
 CONF_UART_ID = "uart_id"
 
+BINARY_SENSOR_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
+    cv.Required(CONF_NAME): cv.string,
+    cv.Optional(CONF_DEVICE_CLASS): cv.one_of("presence", "motion", lower=True),
+})
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
     cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
@@ -41,12 +47,8 @@ CONFIG_SCHEMA = cv.Schema({
         unit_of_measurement=UNIT_CENTIMETER,
         accuracy_decimals=0,
     ),
-    cv.Optional(CONF_PRESENCE): binary_sensor.binary_sensor_schema(
-        device_class=DEVICE_CLASS_PRESENCE,
-    ),
-    cv.Optional(CONF_MICROMOVEMENT): binary_sensor.binary_sensor_schema(
-        device_class=DEVICE_CLASS_MOTION,
-    ),
+    cv.Optional(CONF_PRESENCE): BINARY_SENSOR_SCHEMA,
+    cv.Optional(CONF_MICROMOVEMENT): BINARY_SENSOR_SCHEMA,
     cv.Optional(CONF_MAX_DISTANCE, default=10.0): cv.float_range(min=0.7, max=10.0),
     cv.Optional(CONF_TIMEOUT, default=5): cv.int_range(min=0, max=65535),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)

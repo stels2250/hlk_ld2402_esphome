@@ -1,29 +1,12 @@
-# Basic configuration 
-esphome:
-  name: radar-ld2402
-  friendly_name: Radar Sensor
-
-esp8266:
-  board: d1_mini
-  
-# Optional - set lower log level for production
-logger:
-  level: DEBUG  # Changed from INFO to DEBUG for better diagnostics
-  logs:
-    hlk_ld2402: DEBUG
-    uart: DEBUG
-
 # UART Configuration (from manual)
 uart:
   id: uart_bus
   tx_pin: GPIO1  # TX0 hardware UART
   rx_pin: GPIO3  # RX0 hardware UART
-
-# Remove redundant UART settings since they're handled by the component
-# baud_rate: 115200
-# data_bits: 8
-# parity: NONE
-# stop_bits: 1
+  baud_rate: 115200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
 
 # HLK-LD2402 configuration
 hlk_ld2402:
@@ -31,24 +14,31 @@ hlk_ld2402:
   id: radar_sensor
   max_distance: 5.0  # in meters, default is 5m
   timeout: 5        # in seconds, default is 5s
+  presence:
+    id: radar_presence
+    name: "Radar Presence Detection"
+    device_class: presence
+  micromovement:
+    id: radar_micromovement
+    name: "Radar Micromovement Detection"
+    device_class: motion
 
 # Binary Sensor - Shows if motion/presence is detected
 binary_sensor:
-  - platform: hlk_ld2402
-    id: radar_presence
+  - platform: "hlk_ld2402"
+    id: "radar_presence"
     name: "Radar Presence Detection"
-    presence: {}  # Empty dictionary required
+    device_class: "presence"
 
-  - platform: hlk_ld2402
-    id: radar_micromovement
+  - platform: "hlk_ld2402"
+    id: "radar_micromovement"
     name: "Radar Micromovement Detection"
-    micromovement: {}  # Empty dictionary required
+    device_class: "motion"
 
 # Distance Sensor - Shows detected target distance
 sensor:
-  - platform: hlk_ld2402
-    id: radar_distance
-    distance: {}  # Empty dictionary required
+  - platform: "hlk_ld2402"
+    id: "radar_distance"
     name: "Radar Distance"
     unit_of_measurement: "cm"
     accuracy_decimals: 0
