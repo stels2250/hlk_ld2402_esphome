@@ -5,6 +5,13 @@ esphome:
 
 esp8266:
   board: d1_mini
+  
+# Optional - set lower log level for production
+logger:
+  level: DEBUG  # Changed from INFO to DEBUG for better diagnostics
+  logs:
+    hlk_ld2402: DEBUG
+    uart: DEBUG
 
 # UART Configuration (from manual)
 uart:
@@ -26,14 +33,18 @@ hlk_ld2402:
 # Binary Sensor - Shows if motion/presence is detected
 binary_sensor:
   - platform: hlk_ld2402
-    name: "Radar Presence"
+    id: radar_presence
+    name: "Radar Presence Detection"
     presence:
-      name: "Radar Presence Detection"
-  
+      id: radar_presence_binary
+      device_class: presence
+
   - platform: hlk_ld2402
-    name: "Radar Micromovement"
+    id: radar_micromovement
+    name: "Radar Micromovement Detection"
     micromovement:
-      name: "Radar Micromovement Detection"
+      id: radar_micromovement_binary
+      device_class: motion
 
 # Distance Sensor - Shows detected target distance
 sensor:
@@ -74,9 +85,3 @@ button:
             auto *parent = (esphome::uart::UARTComponent *) id(radar_sensor).parent_;
             id(radar_sensor).set_work_mode_(0x04);  # MODE_ENGINEERING for testing
 
-# Optional - set lower log level for production
-logger:
-  level: DEBUG  # Changed from INFO to DEBUG for better diagnostics
-  logs:
-    hlk_ld2402: DEBUG
-    uart: DEBUG
