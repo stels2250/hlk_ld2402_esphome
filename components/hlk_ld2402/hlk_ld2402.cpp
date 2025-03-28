@@ -52,11 +52,19 @@ void HLKLD2402Component::loop() {
   static uint32_t byte_count = 0;
   static uint8_t last_bytes[16] = {0};
   static size_t last_byte_pos = 0;
+  static uint32_t last_interference_check_time = 0;
   
   // Add periodic debug message - reduce frequency
   if (millis() - last_debug_time > 30000) {  // Every 30 seconds
     ESP_LOGD(TAG, "Waiting for data. Available bytes: %d", available());
     last_debug_time = millis();
+  }
+  
+  // Periodically check power interference (every 60 seconds)
+  if (millis() - last_interference_check_time > 60000) {
+    ESP_LOGI(TAG, "Performing periodic power interference check");
+    check_power_interference();
+    last_interference_check_time = millis();
   }
   
   // Every 10 seconds, report status
@@ -533,6 +541,17 @@ void HLKLD2402Component::enable_auto_gain() {
 }
 
 void HLKLD2402Component::check_power_interference() {
+  ESP_LOGD(TAG, "Checking power interference status");
+  
+  // Need to enter config mode to check parameters
+  bool was_in_config = config_mode_;
+  if (!was_in_config) {
+    if (!enter_config_mode_()) {
+      ESP_LOGE(TAG, "Failed to enter config mode for power interference check");
+      return;
+    }
+  }
+  
   uint32_t value;
   if (get_parameter_(PARAM_POWER_INTERFERENCE, value)) {
     power_interference_detected_ = (value == 2);
@@ -541,10 +560,23 @@ void HLKLD2402Component::check_power_interference() {
     // Update binary sensor if available
     if (this->power_interference_binary_sensor_ != nullptr) {
       this->power_interference_binary_sensor_->publish_state(power_interference_detected_);
+      ESP_LOGI(TAG, "Updated power interference binary sensor to: %s", 
+               power_interference_detected_ ? "ON (interference detected)" : "OFF (no interference)");
+    } else {
+      ESP_LOGW(TAG, "Power interference binary sensor not set up");
     }
     
     if (power_interference_detected_) {
       ESP_LOGW(TAG, "Power interference detected!");
+    }
+  } else {
+    ESP_LOGE(TAG, "Failed to get power interference parameter");
+  }
+  
+  // Exit config mode if we entered it just for this check
+  if (!was_in_config) {
+    if (!exit_config_mode_()) {
+      ESP_LOGE(TAG, "Failed to exit config mode after power interference check");
     }
   }
 }
