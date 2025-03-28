@@ -1,6 +1,21 @@
-# Common HLK-LD2402 configuration to be included from GitHub
+# UART configuration for HLK-LD2402
+uart:
+  id: uart_bus
+  tx_pin: GPIO1  # TX0 hardware UART
+  rx_pin: GPIO3  # RX0 hardware UART
+  baud_rate: 115200
+  data_bits: 8
+  parity: NONE
+  stop_bits: 1
 
-# Default component configuration
+# HLK-LD2402 radar component
+external_components:
+  - source:
+      type: git
+      url: https://github.com/mouldybread/hlk_ld2402_esphome
+    refresh: 0ms
+
+
 hlk_ld2402:
   uart_id: uart_bus
   id: radar_sensor
@@ -31,30 +46,30 @@ sensor:
     unit_of_measurement: "cm"
     accuracy_decimals: 1
     filters:
-      - throttle: 1s
+      - throttle: 2s
 
 # Control buttons
 button:
   - platform: template
     name: "${friendly_name} Calibrate"
     on_press:
-      then:
-        - lambda: id(radar_sensor).calibrate();
+      - lambda: id(radar_sensor).calibrate();
 
   - platform: template
     name: "${friendly_name} Auto Gain"
     on_press:
-      then:
-        - lambda: id(radar_sensor).enable_auto_gain();
+      - lambda: id(radar_sensor).enable_auto_gain();
 
   - platform: template
     name: "${friendly_name} Save Config"
     on_press:
-      then:
-        - lambda: id(radar_sensor).save_config();
+      - lambda: id(radar_sensor).save_config();
 
   - platform: template
     name: "${friendly_name} Engineering Mode"
     on_press:
-      then:
-        - lambda: id(radar_sensor).set_work_mode_(0x04);
+      - lambda: id(radar_sensor).set_work_mode_(0x04);
+
+# Add status LED if available
+status_led:
+  pin: GPIO2

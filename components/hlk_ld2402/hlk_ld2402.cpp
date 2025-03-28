@@ -39,6 +39,8 @@ void HLKLD2402Component::setup() {
 
 void HLKLD2402Component::loop() {
   static uint32_t last_byte_time = 0;
+  static uint32_t last_process_time = 0; // Add throttling timer
+  static const uint32_t PROCESS_INTERVAL = 2000; // Only process lines every 2 seconds
   static const uint32_t TIMEOUT_MS = 100; // Reset buffer if no data for 100ms
   static uint32_t last_debug_time = 0;
   static uint8_t raw_buffer[16];
@@ -81,20 +83,22 @@ void HLKLD2402Component::loop() {
     last_bytes[last_byte_pos] = c;
     last_byte_pos = (last_byte_pos + 1) % 16;
     
-    // Debug: Collect and show raw data periodically
+    // Debug: Collect raw data
     raw_buffer[raw_pos++] = c;
     if (raw_pos >= sizeof(raw_buffer)) {
-      ESP_LOGD(TAG, "Raw data received (hex): %02X %02X %02X %02X %02X %02X %02X %02X...", 
-               raw_buffer[0], raw_buffer[1], raw_buffer[2], raw_buffer[3],
-               raw_buffer[4], raw_buffer[5], raw_buffer[6], raw_buffer[7]);
       raw_pos = 0;
     }
     
     if (c == '\n') {
-      // Process complete line
+      // Process complete line, but check throttling first
       if (!line_buffer_.empty()) {
-        ESP_LOGI(TAG, "Received line: '%s'", line_buffer_.c_str());
-        process_line_(line_buffer_);
+        bool should_process = millis() - last_process_time >= PROCESS_INTERVAL;
+        
+        if (should_process) {
+          last_process_time = millis();
+          ESP_LOGI(TAG, "Received line: '%s'", line_buffer_.c_str());
+          process_line_(line_buffer_);
+        }
         line_buffer_.clear();
       }
     } else if (c != '\r') {  // Skip \r
