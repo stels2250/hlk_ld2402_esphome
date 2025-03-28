@@ -30,13 +30,15 @@ void HLKLD2402Component::process_line_(const std::string &line) {
   if (line.compare(0, 9, "distance:") == 0) {
     // Extract distance value
     std::string distance_str = line.substr(9);
-    try {
-      float distance = std::stof(distance_str);
+    char *end;
+    float distance = strtof(distance_str.c_str(), &end);
+    
+    if (end != distance_str.c_str() && *end == '\0') {  // Successful conversion
       if (this->distance_sensor_ != nullptr) {
         this->distance_sensor_->publish_state(distance / 100.0f);  // Convert to meters
       }
       ESP_LOGD(TAG, "Distance: %.2f m", distance / 100.0f);
-    } catch (...) {
+    } else {
       ESP_LOGW(TAG, "Invalid distance value: %s", distance_str.c_str());
     }
   }
