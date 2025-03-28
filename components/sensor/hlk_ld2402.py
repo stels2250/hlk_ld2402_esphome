@@ -1,3 +1,8 @@
+
+import logging
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.debug("Loading HLK-LD2402 sensor component")
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
