@@ -6,8 +6,8 @@ external_components:
 
 uart:
   id: uart_bus
-  tx_pin: GPIO1
-  rx_pin: GPIO3
+  tx_pin: GPIO1  # D4 on Wemos D1 Mini
+  rx_pin: GPIO3  # D9 on Wemos D1 Mini
   baud_rate: 115200
 
 hlk_ld2402:
@@ -17,18 +17,25 @@ hlk_ld2402:
 
 sensor:
   - platform: hlk_ld2402
+    hlk_ld2402_id: radar_sensor
+    name: "Radar Distance"
     id: radar_distance
-    distance:
-      name: "Radar Distance"
 
 binary_sensor:
   - platform: hlk_ld2402
-    presence:
-      name: "Radar Presence"
-      id: radar_presence
-    movement:
-      name: "Radar Movement"
-      id: radar_movement
-    micromovement:
-      name: "Radar Micro Movement"
-      id: radar_micromovement
+    hlk_ld2402_id: radar_sensor
+    name: "Radar Presence"
+    id: radar_presence
+    type: presence
+
+  - platform: hlk_ld2402
+    hlk_ld2402_id: radar_sensor
+    name: "Radar Movement" 
+    id: radar_movement
+    type: movement
+
+  - platform: hlk_ld2402
+    hlk_ld2402_id: radar_sensor
+    name: "Radar Micro Movement"
+    id: radar_micromovement
+    type: micromovement

@@ -14,68 +14,60 @@ static const uint8_t DATA_FOOTER[4] = {0xF8, 0xF7, 0xF6, 0xF5};
 
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
-  
   // Initialize sensor states
-  if (this->presence_sensor_ != nullptr) {
-    this->presence_sensor_->publish_state(false);
-  }
-  if (this->distance_sensor_ != nullptr) {
-    this->distance_sensor_->publish_state(NAN);
-  }
-  if (this->movement_sensor_ != nullptr) {
-    this->movement_sensor_->publish_state(false);
-  }
-  if (this->micromovement_sensor_ != nullptr) {
-    this->micromovement_sensor_->publish_state(false);
-  }
+  if (presence_sensor_) presence_sensor_->publish_state(false);
+  if (movement_sensor_) movement_sensor_->publish_state(false);
+  if (micromovement_sensor_) micromovement_sensor_->publish_state(false);
+  if (distance_sensor_) distance_sensor_->publish_state(NAN);
 }
 
 void HLKLD2402Component::loop() {
-  // Read available data
-  while (this->available()) {
+  while (available()) {
     uint8_t c;
-    this->read_byte(&c);
-    this->buffer_.push_back(c);
+    read_byte(&c);
+    buffer_.push_back(c);
 
-    // Check for data frame footer
-    if (this->buffer_.size() >= 4) {
-      size_t footer_pos = this->buffer_.size() - 4;
-      if (memcmp(&this->buffer_[footer_pos], DATA_FOOTER, 4) == 0) {
-        this->process_data_(this->buffer_);
-        this->buffer_.clear();
-        continue;
-      }
+    // Check for complete frame
+    if (buffer_.size() >= 8 && 
+        memcmp(&buffer_[buffer_.size()-4], DATA_FOOTER, 4) == 0) {
+      process_data_(buffer_);
+      buffer_.clear();
     }
 
-    // Prevent buffer overflow
-    if (this->buffer_.size() > 128) {
-      ESP_LOGW(TAG, "Buffer overflow, clearing buffer");
-      this->buffer_.clear();
-    }
+    if (buffer_.size() > 128) buffer_.clear();
   }
 }
 
 void HLKLD2402Component::process_data_(const std::vector<uint8_t> &data) {
-  if (data.size() < 8) {
-    ESP_LOGW(TAG, "Data frame too short (%d bytes)", data.size());
-    return;
-  }
+  if (data.size() < 8 || memcmp(&data[0], DATA_HEADER, 4) != 0) return;
 
-  // Verify header
-  if (memcmp(&data[0], DATA_HEADER, 4) != 0) {
-    ESP_LOGW(TAG, "Invalid data frame header");
-    return;
-  }
-
-  // Get frame length (little endian)
   uint16_t frame_len = data[4] | (data[5] << 8);
-  if (data.size() < 8 + frame_len) {
-    ESP_LOGW(TAG, "Incomplete data frame");
-    return;
-  }
+  if (data.size() < 8 + frame_len) return;
 
-  // Parse detection result
-  uint8_t detection_state = data[6];
-  bool presence = (detection_state == 0x01 || detection_state == 0x02);
-  bool movement = (detection_state == 0x01);  // 0x01 = moving, 0x02 = stationary
-  bool micromovement = (detection_state
+  uint8_t state = data[6];
+  bool presence = (state == 0x01 || state == 0x02);
+  bool movement = (state == 0x01);
+  bool micromovement = (state == 0x02);
+  float distance = (data[7] | (data[8] << 8)) / 100.0f;
+
+  // Publish states
+  if (presence_sensor_) presence_sensor_->publish_state(presence);
+  if (movement_sensor_) movement_sensor_->publish_state(movement);
+  if (micromovement_sensor_) micromovement_sensor_->publish_state(micromovement);
+  if (distance_sensor_) distance_sensor_->publish_state(distance);
+
+  ESP_LOGD(TAG, "State: %d, Distance: %.2fm", state, distance);
+}
+
+void HLKLD2402Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "HLK-LD2402:");
+  ESP_LOGCONFIG(TAG, "  Max Distance: %.1f m", max_distance_);
+  ESP_LOGCONFIG(TAG, "  Disappear Delay: %u s", disappear_delay_);
+  LOG_SENSOR("  ", "Distance", distance_sensor_);
+  LOG_BINARY_SENSOR("  ", "Presence", presence_sensor_);
+  LOG_BINARY_SENSOR("  ", "Movement", movement_sensor_);
+  LOG_BINARY_SENSOR("  ", "Micro-movement", micromovement_sensor_);
+}
+
+}  // namespace hlk_ld2402
+}  // namespace esphome
