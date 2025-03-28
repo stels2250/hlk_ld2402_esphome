@@ -2,7 +2,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/mouldybread/hlk_ld2402_esphome
-      ref: main
+      ref: main  # Make sure to specify a branch
 
 uart:
   id: uart_bus
@@ -20,6 +20,12 @@ sensor:
     name: "Radar Distance"
     id: radar_distance
     hlk_ld2402_id: radar_sensor
+    unit_of_measurement: "m"
+    accuracy_decimals: 2
+    filters:
+      - sliding_window_moving_average:
+          window_size: 5
+          send_every: 1
 
 binary_sensor:
   - platform: hlk_ld2402
@@ -27,9 +33,10 @@ binary_sensor:
     id: radar_presence
     hlk_ld2402_id: radar_sensor
     type: presence
+    device_class: presence
 
   - platform: hlk_ld2402
-    name: "Radar Movement" 
+    name: "Radar Movement"
     id: radar_movement
     hlk_ld2402_id: radar_sensor
     type: movement
