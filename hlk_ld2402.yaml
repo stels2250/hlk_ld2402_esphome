@@ -8,8 +8,8 @@ esp8266:
 
 # UART Configuration (from manual)
 uart:
-  tx_pin: GPIO1  # D10 on ESP8266
-  rx_pin: GPIO3  # D9 on ESP8266
+  tx_pin: GPIO1  # TX0 hardware UART
+  rx_pin: GPIO3  # RX0 hardware UART
 
 # Remove redundant UART settings since they're handled by the component
 # baud_rate: 115200
@@ -66,9 +66,17 @@ button:
       then:
         - lambda: id(radar_sensor).save_config();
 
+  - platform: template
+    name: "Engineering Mode"
+    on_press:
+      then:
+        - lambda: |-
+            auto *parent = (esphome::uart::UARTComponent *) id(radar_sensor).parent_;
+            id(radar_sensor).set_work_mode_(0x04);  # MODE_ENGINEERING for testing
+
 # Optional - set lower log level for production
 logger:
-  level: INFO
+  level: DEBUG  # Changed from INFO to DEBUG for better diagnostics
   logs:
-    hlk_ld2402: INFO
+    hlk_ld2402: DEBUG
     uart: DEBUG

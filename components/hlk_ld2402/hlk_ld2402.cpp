@@ -9,10 +9,8 @@ static const char *const TAG = "hlk_ld2402";
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
   
-  // Get the UART parent
+  // Get the UART parent and configure through it
   auto *parent = (esphome::uart::UARTComponent *) this->parent_;
-  
-  // Configure UART settings through parent
   parent->set_baud_rate(UART_BAUD_RATE);
   parent->set_stop_bits(UART_STOP_BITS);
   parent->set_data_bits(UART_DATA_BITS);
@@ -127,7 +125,7 @@ void HLKLD2402Component::loop() {
 }
 
 void HLKLD2402Component::process_line_(const std::string &line) {
-  ESP_LOGD(TAG, "Processing line: '%s'", line.c_str());
+  ESP_LOGV(TAG, "Processing line: '%s'", line.c_str());  // Changed from LOGD to LOGV
   
   if (line == "OFF") {
     ESP_LOGD(TAG, "No target detected");
@@ -153,11 +151,8 @@ void HLKLD2402Component::process_line_(const std::string &line) {
     if (end != distance_str.c_str() && (*end == '\0' || *end == ' ')) {
       // Convert meters to centimeters for ESPHome
       distance = distance * 100;  // Convert to cm
+      ESP_LOGD(TAG, "Detected distance: %.2f cm", distance);  // Changed from LOGI to LOGD
       
-      // According to manual:
-      // - Movement detection up to 10m
-      // - Micromovement detection up to 4m
-      // - Static presence detection up to 5m
       if (this->distance_sensor_ != nullptr) {
         this->distance_sensor_->publish_state(distance);
       }
@@ -191,7 +186,7 @@ bool HLKLD2402Component::write_frame_(const std::vector<uint8_t> &frame) {
   size_t tries = 0;
   while (written < frame.size() && tries++ < 3) {
     size_t to_write = frame.size() - written;
-    write_array(&frame[written], to_write);
+    write_array(&frame[written], to_write);  // write_array returns void
     written += to_write;
     if (written < frame.size()) {
       delay(5);
@@ -389,6 +384,10 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
 bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
   ESP_LOGD(TAG, "Setting work mode to %u", mode);
   
+  // Use production mode from manual instead of MODE_NORMAL
+  if (mode == MODE_NORMAL)
+    mode = MODE_PRODUCTION;
+    
   uint8_t mode_data[6];
   mode_data[0] = 0x00;
   mode_data[1] = 0x00;

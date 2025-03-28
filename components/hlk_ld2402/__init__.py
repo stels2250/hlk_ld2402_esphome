@@ -48,10 +48,10 @@ CONFIG_SCHEMA = cv.Schema({
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    await uart.register_uart_device(var, config)
     
     parent = await cg.get_variable(config[CONF_UART_ID])
-    cg.add(parent.set_baud_rate(115200))  # Changed from 9600 to correct baud rate
-    await uart.register_uart_device(var, config)
+    cg.add(parent.set_baud_rate(115200))
 
     if CONF_DISTANCE in config:
         sens = await sensor.new_sensor(config[CONF_DISTANCE])
