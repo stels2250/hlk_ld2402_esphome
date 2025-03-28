@@ -49,7 +49,7 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-# Define sensor schema with to_code function embedded
+# Define schemas for each platform within the same component
 SENSOR_SCHEMA = sensor.sensor_schema(
     unit_of_measurement=UNIT_CENTIMETER,
     accuracy_decimals=1,
@@ -59,34 +59,36 @@ SENSOR_SCHEMA = sensor.sensor_schema(
     cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
 })
 
-async def to_code_sensor(config):
-    parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
-    var = await sensor.new_sensor(config)
-    cg.add(parent.set_distance_sensor(var))
-
-# Define binary sensor schema with to_code function embedded
 BINARY_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema().extend({
     cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
     cv.Required(CONF_DEVICE_CLASS): cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
 })
 
-async def to_code_binary_sensor(config):
+# Use ESPHome's schema extension mechanism
+def setup_sensor(schema):
+    def decorator(func):
+        return sensor.sensor_schema(schema)(func)
+    return decorator
+
+def setup_binary_sensor(schema):
+    def decorator(func):
+        return binary_sensor.binary_sensor_schema(schema)(func)
+    return decorator
+
+# Distance sensor
+@setup_sensor(SENSOR_SCHEMA)
+async def distance_sensor_to_code(config, component_id):
+    var = await sensor.new_sensor(config)
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
+    cg.add(parent.set_distance_sensor(var))
+
+# Binary sensors (presence and motion)
+@setup_binary_sensor(BINARY_SENSOR_SCHEMA)
+async def hlk_binary_sensor_to_code(config, component_id):
     var = await binary_sensor.new_binary_sensor(config)
+    parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
+    
     if config[CONF_DEVICE_CLASS] == DEVICE_CLASS_PRESENCE:
         cg.add(parent.set_presence_binary_sensor(var))
     elif config[CONF_DEVICE_CLASS] == DEVICE_CLASS_MOTION:
         cg.add(parent.set_micromovement_binary_sensor(var))
-
-# Register platforms (only 2 arguments)
-sensor.SENSOR_SCHEMA = SENSOR_SCHEMA
-sensor.CONF_ACTION_ID = CONF_HLK_LD2402_ID
-sensor.CONF_ACTION_ENTITY_ID = CONF_HLK_LD2402_ID
-
-binary_sensor.BINARY_SENSOR_SCHEMA = BINARY_SENSOR_SCHEMA
-binary_sensor.CONF_ACTION_ID = CONF_HLK_LD2402_ID
-binary_sensor.CONF_ACTION_ENTITY_ID = CONF_HLK_LD2402_ID
-
-# Register platform handlers
-sensor.register_sensor("hlk_ld2402", to_code_sensor)
-binary_sensor.register_binary_sensor("hlk_ld2402", to_code_binary_sensor)
