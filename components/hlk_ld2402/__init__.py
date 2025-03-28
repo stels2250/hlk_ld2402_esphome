@@ -5,9 +5,6 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = ["@mouldybread"]
 DEPENDENCIES = ["uart"]
-
-# This tells ESPHome that when hlk_ld2402 is loaded, it should also try to load the sensor platform
-# from the sensor.py file in the same directory
 AUTO_LOAD = ["sensor", "binary_sensor"]
 
 CONF_HLK_LD2402_ID = "hlk_ld2402_id"
@@ -29,5 +26,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_max_distance(config[CONF_MAX_DISTANCE]))
-    cg.add(var.set_disappear_delay(config[CONF_DISAPPEAR_DELAY]))
+
+    if CONF_MAX_DISTANCE in config:
+        cg.add(var.set_max_distance(config[CONF_MAX_DISTANCE]))
+    if CONF_DISAPPEAR_DELAY in config:
+        cg.add(var.set_disappear_delay(config[CONF_DISAPPEAR_DELAY]))

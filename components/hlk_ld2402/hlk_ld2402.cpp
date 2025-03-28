@@ -7,30 +7,82 @@ namespace hlk_ld2402 {
 
 static const char *const TAG = "hlk_ld2402";
 
+bool HLKLD2402Component::verify_uart_() const {
+  if (!this->get_uart()) {
+    ESP_LOGE(TAG, "UART parent is not set!");
+    return false;
+  }
+  if (!this->get_uart()->get_tx_pin()) {
+    ESP_LOGE(TAG, "UART TX pin is not set!");
+    return false;
+  }
+  if (!this->get_uart()->get_rx_pin()) {
+    ESP_LOGE(TAG, "UART RX pin is not set!");
+    return false;
+  }
+  return true;
+}
+
+void HLKLD2402Component::clear_rx_buffer_() {
+  uint8_t c;
+  while (available()) {
+    read_byte(&c);
+    ESP_LOGV(TAG, "Cleared stale byte: 0x%02X", c);
+  }
+}
+
 void HLKLD2402Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLK-LD2402...");
-  
-  // Wait for sensor to be ready after power-up
-  delay(500);
-  
-  ESP_LOGD(TAG, "Enabling configuration mode...");
-  if (!this->enable_configuration_()) {
-    ESP_LOGE(TAG, "Failed to enable configuration mode");
+
+  if (!this->verify_uart_()) {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Configuration mode enabled (Protocol version: 0x%04X, Buffer size: 0x%04X)", 
-           this->protocol_version_, this->buffer_size_);
+
+  ESP_LOGD(TAG, "UART Config - TX: %d, RX: %d, Baud: %d", 
+           this->get_uart()->get_tx_pin()->get_pin(),
+           this->get_uart()->get_rx_pin()->get_pin(),
+           this->get_uart()->get_baud_rate());
+
+  // Clear any stale data
+  this->buffer_.clear();
+  this->clear_rx_buffer_();
+  
+  // Wait for sensor to be ready after power-up
+  ESP_LOGD(TAG, "Waiting for sensor initialization...");
+  delay(1000);
+
+  // Try to get version first
+  ESP_LOGD(TAG, "Checking sensor version...");
+  if (!this->send_command_(CMD_GET_VERSION)) {
+    ESP_LOGE(TAG, "Failed to get version - no response from sensor");
+    this->mark_failed();
+    return;
+  }
+  
+  ESP_LOGD(TAG, "Enabling configuration mode...");
+  for (int retry = 0; retry < 3; retry++) {
+    if (this->enable_configuration_()) {
+      ESP_LOGD(TAG, "Configuration mode enabled on attempt %d", retry + 1);
+      break;
+    }
+    if (retry == 2) {
+      ESP_LOGE(TAG, "Failed to enable configuration mode after 3 attempts");
+      this->mark_failed();
+      return;
+    }
+    ESP_LOGW(TAG, "Retrying configuration mode enable...");
+    delay(100);
+  }
 
   delay(100);
 
   ESP_LOGD(TAG, "Starting auto gain calibration...");
   if (!this->auto_gain_calibration_()) {
     ESP_LOGW(TAG, "Auto gain calibration failed or not supported - continuing anyway");
-  } else {
-    ESP_LOGD(TAG, "Auto gain calibration successful");
-    delay(100);
   }
+
+  delay(100);
 
   ESP_LOGD(TAG, "Setting engineering mode...");
   if (!this->set_work_mode_(true)) {
@@ -38,7 +90,6 @@ void HLKLD2402Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Engineering mode set successfully");
 
   delay(100);
 
@@ -50,7 +101,6 @@ void HLKLD2402Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Max distance set successfully");
 
   delay(100);
 
@@ -60,7 +110,6 @@ void HLKLD2402Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Disappear delay set successfully");
 
   delay(100);
 
@@ -70,7 +119,6 @@ void HLKLD2402Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Configuration saved successfully");
 
   delay(100);
 
@@ -80,7 +128,6 @@ void HLKLD2402Component::setup() {
     this->mark_failed();
     return;
   }
-  ESP_LOGD(TAG, "Configuration mode disabled");
 
   // Initialize sensor states
   if (this->distance_sensor_) this->distance_sensor_->publish_state(NAN);
@@ -106,12 +153,18 @@ void HLKLD2402Component::loop() {
     }
 
     // Prevent buffer overflow
-    if (this->buffer_.size() > 128)
+    if (this->buffer_.size() > 128) {
+      ESP_LOGW(TAG, "Buffer overflow, clearing");
       this->buffer_.clear();
+    }
   }
 }
 
 bool HLKLD2402Component::send_command_(uint16_t command, const std::vector<uint8_t> &data) {
+  if (!this->verify_uart_()) {
+    return false;
+  }
+
   std::vector<uint8_t> frame;
   
   // Add frame header
@@ -132,6 +185,12 @@ bool HLKLD2402Component::send_command_(uint16_t command, const std::vector<uint8
   // Add frame footer
   frame.insert(frame.end(), FRAME_FOOTER, FRAME_FOOTER + 4);
   
+  // Validate frame length
+  if (frame.size() < 12) {
+    ESP_LOGE(TAG, "Invalid frame length: %d", frame.size());
+    return false;
+  }
+  
   // Clear any existing data in buffer
   this->buffer_.clear();
   this->last_command_ = command;
@@ -145,12 +204,15 @@ bool HLKLD2402Component::send_command_(uint16_t command, const std::vector<uint8
     frame_hex += hex;
     frame_hex += " ";
   }
-  ESP_LOGV(TAG, "Sending frame: %s", frame_hex.c_str());
+  ESP_LOGV(TAG, "Sending frame (%d bytes): %s", frame.size(), frame_hex.c_str());
   
   // Send the frame
-  this->write_array(frame);
+  size_t written = this->write_array(frame);
+  if (written != frame.size()) {
+    ESP_LOGE(TAG, "Failed to write complete frame: wrote %d/%d bytes", written, frame.size());
+    return false;
+  }
   
-  // Wait for response
   return this->wait_for_response_(command);
 }
 
@@ -201,7 +263,7 @@ bool HLKLD2402Component::wait_for_response_(uint16_t command, uint32_t timeout_m
                     command, resp_command);
           }
         }
-        break;  // Exit if we got any complete frame
+        break;
       }
     }
     delay(1);
@@ -217,12 +279,16 @@ bool HLKLD2402Component::wait_for_response_(uint16_t command, uint32_t timeout_m
 }
 
 void HLKLD2402Component::process_data_(const std::vector<uint8_t> &data) {
-  if (data.size() < 8 || !this->check_data_header_(data))
+  if (data.size() < 8 || !this->check_data_header_(data)) {
+    ESP_LOGW(TAG, "Invalid data frame");
     return;
+  }
 
   uint16_t frame_len = data[4] | (data[5] << 8);
-  if (data.size() < 8 + frame_len)
+  if (data.size() < 8 + frame_len) {
+    ESP_LOGW(TAG, "Incomplete data frame");
     return;
+  }
 
   uint8_t state = data[6];
   bool presence = (state == 0x01 || state == 0x02);
@@ -236,94 +302,3 @@ void HLKLD2402Component::process_data_(const std::vector<uint8_t> &data) {
 
   if (this->distance_sensor_ && !std::isnan(distance_m))
     this->distance_sensor_->publish_state(distance_m);
-  if (this->presence_sensor_)
-    this->presence_sensor_->publish_state(presence);
-  if (this->movement_sensor_)
-    this->movement_sensor_->publish_state(movement);
-  if (this->micromovement_sensor_)
-    this->micromovement_sensor_->publish_state(micromovement);
-
-  ESP_LOGD(TAG, "State: %d, Distance: %.2fm", state, distance_m);
-}
-
-bool HLKLD2402Component::enable_configuration_() {
-  std::vector<uint8_t> data = {0x01, 0x00};
-  if (!this->send_command_(CMD_ENABLE_CONFIG, data))
-    return false;
-  this->configuration_mode_ = true;
-  return true;
-}
-
-bool HLKLD2402Component::disable_configuration_() {
-  if (!this->send_command_(CMD_DISABLE_CONFIG))
-    return false;
-  this->configuration_mode_ = false;
-  return true;
-}
-
-bool HLKLD2402Component::set_work_mode_(bool engineering_mode) {
-  std::vector<uint8_t> data = {
-      0x00, 0x00,  // Command value is always 0x0000
-      engineering_mode ? 0x04 : 0x64, 0x00, 0x00, 0x00  // 0x04000000 for engineering, 0x64000000 for normal
-  };
-  return this->send_command_(CMD_SET_MODE, data);
-}
-
-bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
-  std::vector<uint8_t> data = {
-      static_cast<uint8_t>(param_id & 0xFF),
-      static_cast<uint8_t>((param_id >> 8) & 0xFF),
-      static_cast<uint8_t>(value & 0xFF),
-      static_cast<uint8_t>((value >> 8) & 0xFF),
-      static_cast<uint8_t>((value >> 16) & 0xFF),
-      static_cast<uint8_t>((value >> 24) & 0xFF)
-  };
-  return this->send_command_(CMD_SET_PARAMS, data);
-}
-
-bool HLKLD2402Component::save_configuration_() {
-  return this->send_command_(CMD_SAVE_PARAMS);
-}
-
-bool HLKLD2402Component::auto_gain_calibration_() {
-  return this->send_command_(CMD_AUTO_GAIN);
-}
-
-void HLKLD2402Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "HLK-LD2402:");
-  ESP_LOGCONFIG(TAG, "  Max Distance: %.1f m", this->max_distance_);
-  ESP_LOGCONFIG(TAG, "  Disappear Delay: %u s", this->disappear_delay_);
-  ESP_LOGCONFIG(TAG, "  Protocol Version: 0x%04X", this->protocol_version_);
-  ESP_LOGCONFIG(TAG, "  Buffer Size: 0x%04X", this->buffer_size_);
-  LOG_SENSOR("  ", "Distance", this->distance_sensor_);
-  LOG_BINARY_SENSOR("  ", "Presence", this->presence_sensor_);
-  LOG_BINARY_SENSOR("  ", "Movement", this->movement_sensor_);
-  LOG_BINARY_SENSOR("  ", "Micro-movement", this->micromovement_sensor_);
-}
-
-void HLKLD2402DistanceSensor::setup() {
-  if (this->parent_ == nullptr) {
-    ESP_LOGE(TAG, "Parent not set for distance sensor!");
-    this->mark_failed();
-    return;
-  }
-  this->parent_->set_distance_sensor(this);
-}
-
-void HLKLD2402BinarySensor::setup() {
-  if (this->parent_ == nullptr) {
-    ESP_LOGE(TAG, "Parent not set for binary sensor!");
-    this->mark_failed();
-    return;
-  }
-  if (this->type_ == "presence") {
-    this->parent_->set_presence_sensor(this);
-  } else if (this->type_ == "movement") {
-    this->parent_->set_movement_sensor(this);
-  } else if (this->type_ == "micromovement") {
-    this->parent_->set_micromovement_sensor(this);
-  }
-}
-
-}  // namespace hlk_ld2402
-}  // namespace esphome

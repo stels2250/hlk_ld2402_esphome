@@ -28,7 +28,6 @@ static const uint16_t CMD_AUTO_GAIN = 0x00EE;
 // Parameter IDs
 static const uint16_t PARAM_MAX_DISTANCE = 0x0001;
 static const uint16_t PARAM_DISAPPEAR_DELAY = 0x0004;
-static const uint16_t PARAM_POWER_INTERFERENCE = 0x0005;
 
 class HLKLD2402Component;  // Forward declaration
 
@@ -57,6 +56,7 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
   void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void set_max_distance(float distance) { max_distance_ = distance; }
   void set_disappear_delay(uint16_t delay) { disappear_delay_ = delay; }
@@ -88,6 +88,8 @@ class HLKLD2402Component : public Component, public uart::UARTDevice {
   bool save_configuration_();
   bool auto_gain_calibration_();
   bool set_parameter_(uint16_t param_id, uint32_t value);
+  bool verify_uart_() const;
+  void clear_rx_buffer_();
 
   float max_distance_{8.5f};
   uint16_t disappear_delay_{30};
