@@ -1,3 +1,6 @@
+# Current Date: 2025-03-28 14:33:07
+# Author: mouldybread
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
