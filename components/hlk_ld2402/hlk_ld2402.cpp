@@ -17,8 +17,10 @@ void HLKLD2402Component::setup() {
   parent->set_parity(esphome::uart::UART_CONFIG_PARITY_NONE);  // Use direct enum value
 
   // Flush any residual data
-  while (available())
-    read_byte();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+  }
     
   ESP_LOGD(TAG, "UART configured. Starting initialization sequence...");
 
