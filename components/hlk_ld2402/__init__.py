@@ -60,21 +60,8 @@ CONFIG_SCHEMA = cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 # Platform schemas
-SENSOR_PLATFORM_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(sensor.Sensor),
-    cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    cv.Required(CONF_NAME): cv.string,
-    cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_DISTANCE): cv.string,
-    cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=UNIT_CENTIMETER): cv.string,
-    cv.Optional(CONF_ACCURACY_DECIMALS, default=1): cv.int_range(min=0, max=2),
-}).extend(cv.COMPONENT_SCHEMA)
-
-BINARY_SENSOR_PLATFORM_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(binary_sensor.BinarySensor),
-    cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    cv.Required(CONF_NAME): cv.string,
-    cv.Required(CONF_DEVICE_CLASS): cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
-}).extend(cv.COMPONENT_SCHEMA)
+sensor.SENSOR_PLATFORM_SCHEMA = SENSOR_SCHEMA
+binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA = BINARY_SENSOR_SCHEMA
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -86,13 +73,24 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-@SENSOR_PLATFORM_SCHEMA.register_platform()
+# Replace the @register_platform decorators with these platform registration functions
+@sensor.register_sensor(
+    "hlk_ld2402",
+    SENSOR_PLATFORM_SCHEMA,
+    sensor_to_code,
+)
+@binary_sensor.register_binary_sensor(
+    "hlk_ld2402",
+    BINARY_SENSOR_PLATFORM_SCHEMA,
+    binary_sensor_to_code,
+)
+
+# Move the sensor_to_code and binary_sensor_to_code functions here unchanged
 async def sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await sensor.new_sensor(config)
     cg.add(parent.set_distance_sensor(var))
 
-@BINARY_SENSOR_PLATFORM_SCHEMA.register_platform()
 async def binary_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await binary_sensor.new_binary_sensor(config)
