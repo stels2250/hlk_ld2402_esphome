@@ -50,30 +50,33 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-# Define platform schemas
-DISTANCE_SENSOR_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-}).extend(sensor.sensor_schema(
-    device_class=DEVICE_CLASS_DISTANCE,
-    state_class=STATE_CLASS_MEASUREMENT,
-    unit_of_measurement=UNIT_CENTIMETER,
-    accuracy_decimals=1,
-))
+# Platform registration
+DISTANCE_SENSOR_SCHEMA = (
+    sensor.sensor_schema(
+        device_class=DEVICE_CLASS_DISTANCE,
+        state_class=STATE_CLASS_MEASUREMENT,
+        unit_of_measurement=UNIT_CENTIMETER,
+        accuracy_decimals=1,
+    )
+    .extend({
+        cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    })
+)
 
-BINARY_SENSOR_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-}).extend(binary_sensor.binary_sensor_schema(
-    device_class=cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
-))
+BINARY_SENSOR_SCHEMA = (
+    binary_sensor.binary_sensor_schema(
+        device_class=cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
+    )
+    .extend({
+        cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    })
+)
 
-# Sensor platform registration functions
-@sensor.register_sensor("hlk_ld2402", DISTANCE_SENSOR_SCHEMA)
 async def hlk_ld2402_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await sensor.new_sensor(config)
     cg.add(parent.set_distance_sensor(var))
 
-@binary_sensor.register_binary_sensor("hlk_ld2402", BINARY_SENSOR_SCHEMA)
 async def hlk_ld2402_binary_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await binary_sensor.new_binary_sensor(config)
@@ -81,3 +84,13 @@ async def hlk_ld2402_binary_sensor_to_code(config):
         cg.add(parent.set_presence_binary_sensor(var))
     elif config[CONF_DEVICE_CLASS] == DEVICE_CLASS_MOTION:
         cg.add(parent.set_micromovement_binary_sensor(var))
+
+# Register platforms
+sensor.SENSOR_SCHEMA = DISTANCE_SENSOR_SCHEMA
+sensor.SENSOR_PLATFORM_SCHEMA = DISTANCE_SENSOR_SCHEMA
+binary_sensor.BINARY_SENSOR_SCHEMA = BINARY_SENSOR_SCHEMA
+binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA = BINARY_SENSOR_SCHEMA
+
+# Register platform handlers
+sensor.register_sensor("hlk_ld2402", hlk_ld2402_sensor_to_code)
+binary_sensor.register_binary_sensor("hlk_ld2402", hlk_ld2402_binary_sensor_to_code)
