@@ -32,7 +32,7 @@ CONF_TIMEOUT = "timeout"
 CONF_UART_ID = "uart_id"
 CONF_HLK_LD2402_ID = "hlk_ld2402_id"
 
-# Component schema
+# Main component schema
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
     cv.GenerateID(CONF_UART_ID): cv.use_id(uart.UARTComponent),
@@ -50,27 +50,20 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-# Platform registration
-DISTANCE_SENSOR_SCHEMA = (
-    sensor.sensor_schema(
-        device_class=DEVICE_CLASS_DISTANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-        unit_of_measurement=UNIT_CENTIMETER,
-        accuracy_decimals=1,
-    )
-    .extend({
-        cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    })
-)
+# Define platform schemas without overriding global schemas
+DISTANCE_SENSOR_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_CENTIMETER,
+    accuracy_decimals=1,
+    device_class=DEVICE_CLASS_DISTANCE,
+    state_class=STATE_CLASS_MEASUREMENT,
+).extend({
+    cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+})
 
-BINARY_SENSOR_SCHEMA = (
-    binary_sensor.binary_sensor_schema(
-        device_class=cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
-    )
-    .extend({
-        cv.GenerateID(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
-    })
-)
+BINARY_SENSOR_SCHEMA = binary_sensor.binary_sensor_schema().extend({
+    cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    cv.Required(CONF_DEVICE_CLASS): cv.one_of(DEVICE_CLASS_PRESENCE, DEVICE_CLASS_MOTION),
+})
 
 async def hlk_ld2402_sensor_to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
@@ -85,12 +78,15 @@ async def hlk_ld2402_binary_sensor_to_code(config):
     elif config[CONF_DEVICE_CLASS] == DEVICE_CLASS_MOTION:
         cg.add(parent.set_micromovement_binary_sensor(var))
 
-# Register platforms
-sensor.SENSOR_SCHEMA = DISTANCE_SENSOR_SCHEMA
-sensor.SENSOR_PLATFORM_SCHEMA = DISTANCE_SENSOR_SCHEMA
-binary_sensor.BINARY_SENSOR_SCHEMA = BINARY_SENSOR_SCHEMA
-binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA = BINARY_SENSOR_SCHEMA
+# Register platforms properly - use function call style instead of decorators
+sensor.register_sensor(
+    "hlk_ld2402",
+    DISTANCE_SENSOR_SCHEMA,
+    hlk_ld2402_sensor_to_code,
+)
 
-# Register platform handlers
-sensor.register_sensor("hlk_ld2402", hlk_ld2402_sensor_to_code)
-binary_sensor.register_binary_sensor("hlk_ld2402", hlk_ld2402_binary_sensor_to_code)
+binary_sensor.register_binary_sensor(
+    "hlk_ld2402",
+    BINARY_SENSOR_SCHEMA,
+    hlk_ld2402_binary_sensor_to_code,
+)
