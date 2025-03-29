@@ -278,7 +278,8 @@ void HLKLD2402Component::loop() {
           // Process the data frame based on frame_type
           if (frame_type == DATA_FRAME_TYPE_DISTANCE) {
             if (process_distance_frame_(frame_data)) {
-              ESP_LOGD(TAG, "Successfully processed distance data frame");
+              // Remove this log message completely
+              // ESP_LOGD(TAG, "Successfully processed distance data frame");
             } else {
               ESP_LOGW(TAG, "Failed to process distance data frame");
             }
@@ -617,8 +618,6 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
       this->distance_sensor_->publish_state(min_distance_cm);
       last_distance_update_ = now;
       ESP_LOGD(TAG, "Updated distance sensor");
-    } else if (throttled) {
-      ESP_LOGV(TAG, "Skipping distance sensor update due to throttling (%.1f cm)", min_distance_cm);
     }
     
     return true;
@@ -838,8 +837,6 @@ void HLKLD2402Component::process_line_(const std::string &line) {
       
       this->distance_sensor_->publish_state(distance_cm);
       last_distance_update_ = now;
-    } else if (throttled) {
-      ESP_LOGV(TAG, "Skipping distance sensor update due to throttling (%.1f cm)", distance_cm);
     }
   }
 }
