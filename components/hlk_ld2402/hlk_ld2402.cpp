@@ -47,7 +47,7 @@ void HLKLD2402Component::setup() {
 void HLKLD2402Component::get_firmware_version_() {
   ESP_LOGI(TAG, "Retrieving firmware version...");
   
-  // Clear any pending data
+  // Clear any pending data first
   flush();
   while (available()) {
     uint8_t c;
@@ -59,70 +59,146 @@ void HLKLD2402Component::get_firmware_version_() {
   if (!config_mode_) {
     if (!enter_config_mode_()) {
       ESP_LOGW(TAG, "Failed to enter config mode for firmware version check");
-#ifdef USE_TEXT_SENSOR
       if (firmware_version_text_sensor_ != nullptr) {
-        firmware_version_text_sensor_->publish_state("Unknown");
+        firmware_version_text_sensor_->publish_state("Unknown - Config Failed");
       }
-#endif
       return;
     }
     entered_config_mode = true;
   }
   
-  // Send version command
-  if (!send_command_(CMD_GET_VERSION)) {
-    ESP_LOGW(TAG, "Failed to send version command");
-#ifdef USE_TEXT_SENSOR
-    if (firmware_version_text_sensor_ != nullptr) {
-      firmware_version_text_sensor_->publish_state("Unknown");
+  // Fetch firmware version using parameter ID approach instead of direct command
+  // Some devices might support this alternative method
+  ESP_LOGI(TAG, "Attempting to get firmware version via parameter query...");
+  
+  uint32_t version_value = 0;
+  bool version_success = false;
+  
+  // Try the parameter-based approach (parameter 0x0008 is often firmware version)
+  uint8_t version_param_data[2] = {0x08, 0x00};  // Parameter ID 0x0008
+  if (send_command_(CMD_GET_PARAMS, version_param_data, sizeof(version_param_data))) {
+    std::vector<uint8_t> param_response;
+    if (read_response_(param_response, 2000)) {
+      // Log raw response
+      char hex_buf[128] = {0};
+      for (size_t i = 0; i < param_response.size() && i < 20; i++) {
+        sprintf(hex_buf + (i*3), "%02X ", param_response[i]);
+      }
+      ESP_LOGI(TAG, "Version parameter response: %s", hex_buf);
+      
+      if (param_response.size() >= 6) {
+        version_value = param_response[2] | (param_response[3] << 8) | 
+                       (param_response[4] << 16) | (param_response[5] << 24);
+        ESP_LOGI(TAG, "Version parameter value: %u", version_value);
+        version_success = true;
+      }
     }
-#endif
-    
-    if (entered_config_mode) {
-      exit_config_mode_();
-    }
-    return;
   }
   
-  delay(1000);  // Wait for response
+  // If parameter approach failed, try direct command approach
+  if (!version_success) {
+    ESP_LOGI(TAG, "Parameter approach failed, trying direct command method...");
+    if (send_command_(CMD_GET_VERSION)) {
+      std::vector<uint8_t> response;
+      if (read_response_(response, 2000)) {
+        char hex_buf[128] = {0};
+        for (size_t i = 0; i < response.size() && i < 20; i++) {
+          sprintf(hex_buf + (i*3), "%02X ", response[i]);
+        }
+        ESP_LOGI(TAG, "Version command response: %s", hex_buf);
+        
+        // Try to extract version info
+        if (response.size() >= 3) {
+          version_value = response[0] | (response[1] << 8) | (response[2] << 16);
+          version_success = true;
+        }
+      } else {
+        ESP_LOGW(TAG, "No response to version command");
+      }
+    }
+  }
   
-  std::vector<uint8_t> response;
-  if (read_response_(response, 3000)) {
-    char version[32] = "Unknown";
+  // Construct version string based on results
+  char version[32];
+  if (version_success) {
+    // Format version based on the value
+    uint8_t major = (version_value >> 16) & 0xFF;
+    uint8_t minor = (version_value >> 8) & 0xFF;
+    uint8_t patch = version_value & 0xFF;
     
-    // Log raw response
-    char hex_buf[128] = {0};
-    for (size_t i = 0; i < response.size() && i < 20; i++) {
-      sprintf(hex_buf + (i*3), "%02X ", response[i]);
-    }
-    ESP_LOGI(TAG, "Version response: %s", hex_buf);
-    
-    // Try to extract version info - usually in the format "V1.2.3"
-    if (response.size() >= 3) {
-      // Format version as "vX.Y.Z" based on bytes in response
-      sprintf(version, "v%d.%d.%d", response[0], response.size() > 1 ? response[1] : 0, 
-              response.size() > 2 ? response[2] : 0);
-      firmware_version_ = version;  // Also update the internal version string
-      ESP_LOGI(TAG, "Firmware version: %s", version);
+    if (major == 0 && minor == 0 && patch == 0) {
+      // If all zeros, try different interpretation
+      major = (version_value >> 24) & 0xFF;
+      minor = (version_value >> 16) & 0xFF;
+      patch = (version_value >> 8) & 0xFF;
     }
     
-#ifdef USE_TEXT_SENSOR
-    // Publish version to Home Assistant
-    if (firmware_version_text_sensor_ != nullptr) {
-      firmware_version_text_sensor_->publish_state(version);
-    }
-#endif
+    sprintf(version, "v%d.%d.%d", major, minor, patch);
+    firmware_version_ = version;
+    ESP_LOGI(TAG, "Firmware version: %s (raw: 0x%08X)", version, version_value);
   } else {
-    ESP_LOGW(TAG, "No response to version command");
-#ifdef USE_TEXT_SENSOR
-    if (firmware_version_text_sensor_ != nullptr) {
-      firmware_version_text_sensor_->publish_state("Unknown");
+    // Extract firmware version from data output
+    ESP_LOGI(TAG, "Trying to extract version from normal data output...");
+    strcpy(version, "Unknown");
+    
+    // Flush and read some normal output data
+    flush();
+    delay(500);
+    
+    // Try to find any version info in the data output
+    uint32_t start = millis();
+    while ((millis() - start) < 2000) {
+      if (available() > 10) {
+        std::string data_line;
+        while (available()) {
+          uint8_t c;
+          read_byte(&c);
+          if (c == '\n') break;
+          if (c != '\r') data_line += (char)c;
+        }
+        
+        ESP_LOGD(TAG, "Device output: %s", data_line.c_str());
+        
+        // Look for anything that might indicate a version
+        if (data_line.find("v") != std::string::npos || 
+            data_line.find("V") != std::string::npos ||
+            data_line.find("version") != std::string::npos) {
+          strcpy(version, data_line.c_str());
+          break;
+        }
+      }
+      delay(100);
     }
-#endif
   }
   
+  // Safe exit from config mode even if we had issues
   if (entered_config_mode) {
-    exit_config_mode_();
+    ESP_LOGI(TAG, "Safely exiting config mode...");
+    // Send exit command multiple times to increase chances of success
+    for (int i = 0; i < 3; i++) {
+      if (send_command_(CMD_DISABLE_CONFIG)) {
+        delay(200);
+        std::vector<uint8_t> exit_response;
+        if (read_response_(exit_response, 1000)) {
+          ESP_LOGI(TAG, "Received response to exit config mode command");
+          config_mode_ = false;
+          break;
+        }
+      }
+      delay(300);
+    }
+    
+    // Force exit state even if command didn't work properly
+    if (config_mode_) {
+      ESP_LOGW(TAG, "Forcing exit from config mode state");
+      config_mode_ = false;
+    }
+  }
+  
+  // Always publish version even if we couldn't get it
+  if (firmware_version_text_sensor_ != nullptr) {
+    firmware_version_text_sensor_->publish_state(version);
+    ESP_LOGI(TAG, "Published firmware version: %s", version);
   }
 }
 
@@ -953,24 +1029,35 @@ bool HLKLD2402Component::exit_config_mode_() {
     
   ESP_LOGD(TAG, "Exiting config mode...");
   
-  if (!send_command_(CMD_DISABLE_CONFIG)) {
-    ESP_LOGE(TAG, "Failed to send exit config mode command");
-    return false;
-  }
+  // Try multiple times to exit config mode
+  for (int attempt = 0; attempt < 3; attempt++) {
+    if (!send_command_(CMD_DISABLE_CONFIG)) {
+      ESP_LOGE(TAG, "Failed to send exit config mode command");
+      delay(300);
+      continue;
+    }
     
-  std::vector<uint8_t> response;
-  if (!read_response_(response)) {  // Use default timeout
-    ESP_LOGE(TAG, "No response to exit config mode command");
-    return false;
-  }
+    delay(200);  // Wait for response
     
-  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
-    config_mode_ = false;
-    ESP_LOGI(TAG, "Successfully exited config mode");
-    return true;
+    std::vector<uint8_t> response;
+    if (read_response_(response, 1000)) {
+      // More permissive check for success
+      if (response.size() >= 2) {
+        // Accept either 00 00 or any response
+        config_mode_ = false;
+        ESP_LOGI(TAG, "Successfully exited config mode");
+        return true;
+      }
+    } else {
+      ESP_LOGW(TAG, "No response to exit config mode command, attempt %d", attempt + 1);
+    }
+    
+    delay(200);  // Add delay between attempts
   }
   
-  ESP_LOGE(TAG, "Invalid response to exit config mode command");
+  // If we had issues, force exit config mode
+  ESP_LOGW(TAG, "Forcing exit from config mode state despite issues");
+  config_mode_ = false;
   return false;
 }
 
