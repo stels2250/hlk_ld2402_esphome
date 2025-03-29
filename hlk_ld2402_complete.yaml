@@ -42,7 +42,7 @@ binary_sensor:
     power_interference: true
     hlk_ld2402_id: radar_sensor
 
-# Distance sensor
+# Distance sensor - Use component's built-in throttling instead of filter
 sensor:
   - platform: hlk_ld2402
     id: radar_distance
@@ -51,8 +51,7 @@ sensor:
     device_class: distance
     unit_of_measurement: "cm"
     accuracy_decimals: 1
-    filters:
-      - throttle: 2s
+    throttle: 2000ms  # 2 second throttle directly in the component
 
 # Text sensors
 text_sensor:

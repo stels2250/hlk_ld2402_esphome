@@ -53,6 +53,9 @@ void HLKLD2402Component::setup() {
   // Set initial operating mode text
   operating_mode_ = "Normal";
   publish_operating_mode_();
+  
+  // Initialize the throttle timestamp to avoid updates right after boot
+  last_distance_update_ = millis();
 }
 
 // New function to passively monitor output for version info
@@ -415,6 +418,16 @@ void HLKLD2402Component::loop() {
 
 // Add new method to parse distance data frames
 bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &frame_data) {
+  // Early throttle check - don't even bother processing if we're throttled
+  uint32_t now = millis();
+  bool throttled = (this->distance_sensor_ != nullptr && 
+                   now - last_distance_update_ < distance_throttle_ms_);
+                   
+  if (throttled) {
+    ESP_LOGV(TAG, "Skipping binary frame processing due to throttling");
+    return false; // Skip processing completely if throttled
+  }
+
   // Ensure the frame is at least the minimum expected length
   // Header (4) + Type (1) + Length (2) + minimum data
   if (frame_data.size() < 10) {
@@ -426,9 +439,6 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
   // - First 5 bytes are header + type (F4 F3 F2 F1 83)
   // - Next 2 bytes are data length
   uint16_t data_length = frame_data[6] | (frame_data[7] << 8);
-  
-  // Log the frame for debugging
-  ESP_LOGD(TAG, "Distance frame data length: %d", data_length);
   
   // Check if we have at least one distance value 
   // Typically our frame looks like: 
@@ -460,37 +470,51 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
         min_distance_cm = distance;
       }
       
-      ESP_LOGD(TAG, "Distance value at pos %d: %.1f cm", i, distance);
+      ESP_LOGV(TAG, "Distance value at pos %d: %.1f cm", i, distance);
+      
+      // Find just one valid value, then break - don't process all values
+      if (min_distance_cm > 0) {
+        break;
+      }
     }
   }
   
-  // If we found a valid distance, update our sensors with throttling
+  // If we found a valid distance, update our sensors
   if (min_distance_cm > 0) {
-    ESP_LOGI(TAG, "Detected distance (from binary frame): %.1f cm", min_distance_cm);
+    // Use verbose level for regular updates, INFO only for significant changes
+    static float last_reported_distance = 0;
+    bool significant_change = fabsf(min_distance_cm - last_reported_distance) > 10.0f;
     
-    uint32_t now = millis();
+    // Extract the detection status from the frame data (typically at position 8)
+    uint8_t detection_status = 0;
+    if (frame_data.size() >= 9) {
+      detection_status = frame_data[8];
+    }
     
-    // Update distance sensor with throttling
+    // Log with more detailed status information
+    const char* status_text = "unknown";
+    switch(detection_status) {
+      case 0: status_text = "no person"; break;
+      case 1: status_text = "person"; break;
+      case 2: status_text = "stationary person"; break;
+    }
+    
+    if (significant_change) {
+      ESP_LOGI(TAG, "Detected %s at distance (binary): %.1f cm", status_text, min_distance_cm);
+      last_reported_distance = min_distance_cm;
+    } else {
+      ESP_LOGV(TAG, "Detected %s at distance (binary): %.1f cm", status_text, min_distance_cm);
+    }
+    
+    // Update distance sensor (already throttled via the early exit above)
     if (this->distance_sensor_ != nullptr) {
-      if (now - last_distance_update_ >= distance_throttle_ms_) {
-        this->distance_sensor_->publish_state(min_distance_cm);
-        last_distance_update_ = now;
-        ESP_LOGD(TAG, "Updated distance sensor (throttled)");
-      } else {
-        ESP_LOGV(TAG, "Skipped distance update due to throttling");
-      }
+      this->distance_sensor_->publish_state(min_distance_cm);
+      last_distance_update_ = now;
+      ESP_LOGD(TAG, "Updated distance sensor");
     }
     
-    // Always update binary sensors - they don't need throttling
-    if (this->presence_binary_sensor_ != nullptr) {
-      bool is_presence = min_distance_cm <= (STATIC_RANGE * 100);
-      this->presence_binary_sensor_->publish_state(is_presence);
-    }
-    
-    if (this->micromovement_binary_sensor_ != nullptr) {
-      bool is_micro = min_distance_cm <= (MICROMOVEMENT_RANGE * 100);
-      this->micromovement_binary_sensor_->publish_state(is_micro);
-    }
+    // Binary sensors don't need throttling
+    update_binary_sensors_(min_distance_cm);
     
     return true;
   }
@@ -498,8 +522,32 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
   return false;
 }
 
+// Create a separate method for updating binary sensors to avoid code duplication
+void HLKLD2402Component::update_binary_sensors_(float distance_cm) {
+  // Update presence states based on documented ranges
+  if (this->presence_binary_sensor_ != nullptr) {
+    bool is_presence = distance_cm <= (STATIC_RANGE * 100);
+    this->presence_binary_sensor_->publish_state(is_presence);
+  }
+  
+  if (this->micromovement_binary_sensor_ != nullptr) {
+    bool is_micro = distance_cm <= (MICROMOVEMENT_RANGE * 100);
+    this->micromovement_binary_sensor_->publish_state(is_micro);
+  }
+}
+
 void HLKLD2402Component::process_line_(const std::string &line) {
   ESP_LOGD(TAG, "Processing line: '%s'", line.c_str());
+  
+  // Early throttle check - don't even bother processing if we're throttled
+  uint32_t now = millis();
+  bool throttled = (this->distance_sensor_ != nullptr && 
+                   now - last_distance_update_ < distance_throttle_ms_);
+                   
+  if (throttled) {
+    ESP_LOGV(TAG, "Skipping text processing due to throttling");
+    return; // Skip processing completely if throttled
+  }
   
   // Handle OFF status
   if (line == "OFF") {
@@ -512,6 +560,7 @@ void HLKLD2402Component::process_line_(const std::string &line) {
     }
     if (this->distance_sensor_ != nullptr) {
       this->distance_sensor_->publish_state(0);
+      last_distance_update_ = now; // Update timestamp for throttling
     }
     return;
   }
@@ -525,7 +574,7 @@ void HLKLD2402Component::process_line_(const std::string &line) {
   if (dist_pos != std::string::npos) {
     // Extract everything after "distance:"
     std::string distance_str = line.substr(dist_pos + 9);
-    ESP_LOGI(TAG, "Found distance data: '%s'", distance_str.c_str());
+    ESP_LOGV(TAG, "Found distance data: '%s'", distance_str.c_str());
     
     // Remove any trailing non-numeric characters
     size_t pos = distance_str.find_first_not_of("0123456789.");
@@ -540,7 +589,17 @@ void HLKLD2402Component::process_line_(const std::string &line) {
       // From the logs, it seems the value is already in cm
       distance_cm = distance;
       valid_distance = true;
-      ESP_LOGI(TAG, "Detected distance: %.1f cm", distance_cm);
+      
+      // Use verbose level for regular updates, INFO only for significant changes
+      static float last_reported_distance = 0;
+      bool significant_change = fabsf(distance_cm - last_reported_distance) > 10.0f;
+      
+      if (significant_change) {
+        ESP_LOGI(TAG, "Detected distance (text): %.1f cm", distance_cm);
+        last_reported_distance = distance_cm;
+      } else {
+        ESP_LOGV(TAG, "Detected distance (text): %.1f cm", distance_cm);
+      }
     }
   } else {
     // Try parsing just a number (some devices output just the number)
@@ -559,35 +618,22 @@ void HLKLD2402Component::process_line_(const std::string &line) {
       if (end != line.c_str()) {
         distance_cm = distance;
         valid_distance = true;
-        ESP_LOGI(TAG, "Detected numeric distance: %.1f cm", distance_cm);
+        
+        // Use verbose level for regular updates
+        ESP_LOGV(TAG, "Detected numeric distance: %.1f cm", distance_cm);
       }
     }
   }
   
   if (valid_distance) {
-    uint32_t now = millis();
-    
-    // Update distance sensor with throttling
+    // Update distance sensor (already throttled via the early exit above)
     if (this->distance_sensor_ != nullptr) {
-      if (now - last_distance_update_ >= distance_throttle_ms_) {
-        this->distance_sensor_->publish_state(distance_cm);
-        last_distance_update_ = now;
-        ESP_LOGD(TAG, "Updated distance sensor from text data (throttled)");
-      } else {
-        ESP_LOGV(TAG, "Skipped distance update from text data due to throttling");
-      }
+      this->distance_sensor_->publish_state(distance_cm);
+      last_distance_update_ = now;
     }
     
-    // Always update binary sensors - they don't need throttling
-    if (this->presence_binary_sensor_ != nullptr) {
-      bool is_presence = distance_cm <= (STATIC_RANGE * 100);
-      this->presence_binary_sensor_->publish_state(is_presence);
-    }
-    
-    if (this->micromovement_binary_sensor_ != nullptr) {
-      bool is_micro = distance_cm <= (MICROMOVEMENT_RANGE * 100);
-      this->micromovement_binary_sensor_->publish_state(is_micro);
-    }
+    // Always update binary sensors
+    update_binary_sensors_(distance_cm);
   }
 }
 

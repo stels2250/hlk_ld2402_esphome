@@ -136,6 +136,7 @@ protected:
 
   bool parse_data_frame_(const std::vector<uint8_t> &frame_data);
   bool process_distance_frame_(const std::vector<uint8_t> &frame_data);
+  void update_binary_sensors_(float distance_cm);  // New helper method
 
 private:
   // According to manual, response timeout should be 1s
