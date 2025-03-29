@@ -915,10 +915,12 @@ void HLKLD2402Component::check_power_interference() {
   // 2: Has interference
   bool has_interference = false;
   
-  if (response.size() >= 6) {
-    // Standard parameter response format:
-    // Parameter ID (2 bytes) + Parameter value (4 bytes)
-    uint32_t value = response[2] | (response[3] << 8) | (response[4] << 16) | (response[5] << 24);
+  // Based on the protocol documentation and our response:
+  // The response format is:
+  // CMD (2 bytes) + ACK (2 bytes) + Parameter ID (2 bytes) + Parameter value (4 bytes)
+  if (response.size() >= 10) {
+    // Parameter value is at offset 6-9, little endian
+    uint32_t value = response[6] | (response[7] << 8) | (response[8] << 16) | (response[9] << 24);
     ESP_LOGI(TAG, "Power interference value: %u", value);
     
     if (value == 0) {
