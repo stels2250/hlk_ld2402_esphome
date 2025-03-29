@@ -64,6 +64,81 @@ sensor:
     state_class: measurement
     calibration_progress: true
 
+  # Energy gate sensors for engineering mode
+  - platform: hlk_ld2402
+    id: radar_energy_gate_0
+    name: "Radar Energy Gate 0"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 0
+  
+  - platform: hlk_ld2402
+    id: radar_energy_gate_1
+    name: "Radar Energy Gate 1"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 1
+  
+  # Add more gates as needed, or use a template to generate them
+  # For example, gates 0-4 cover the first 3.5 meters (gate size is ~0.7m)
+  
+  # Use a template to generate 14 energy gate sensors (0-13)
+  # Each gate corresponds to approximately 0.7m of distance
+  # First 14 gates cover up to ~9.8m
+  - platform: hlk_ld2402
+    id: radar_energy_gate_0
+    name: "Radar Energy Gate 0"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 0
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_1
+    name: "Radar Energy Gate 1"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 1
+
+  # ... Additional gates (2-11) would be defined similarly ...
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_12
+    name: "Radar Energy Gate 12"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 12
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_13
+    name: "Radar Energy Gate 13"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 13
+
 # Text sensors
 text_sensor:
   - platform: hlk_ld2402

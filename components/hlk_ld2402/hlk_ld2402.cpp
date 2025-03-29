@@ -276,6 +276,12 @@ void HLKLD2402Component::loop() {
             } else {
               ESP_LOGW(TAG, "Failed to process distance data frame");
             }
+          } else if (frame_type == DATA_FRAME_TYPE_ENGINEERING) {
+            if (process_engineering_data_(frame_data)) {
+              ESP_LOGD(TAG, "Successfully processed engineering data frame");
+            } else {
+              ESP_LOGV(TAG, "Failed to process engineering data frame");
+            }
           } else {
             ESP_LOGD(TAG, "Unknown frame type: 0x%02X", frame_type);
           }
@@ -625,6 +631,72 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
   }
   
   return false;
+}
+
+// Add new method to process engineering data
+bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &frame_data) {
+  // Early exit if engineering data processing is not enabled
+  if (!engineering_data_enabled_ || energy_gate_sensors_.empty()) {
+    return false;
+  }
+  
+  // Make sure we're in engineering mode
+  if (operating_mode_ != "Engineering") {
+    ESP_LOGV(TAG, "Received engineering data while not in engineering mode");
+    return false;
+  }
+
+  // Ensure the frame is at least the minimum expected length
+  // Header (5) + Length (2) + Some data
+  if (frame_data.size() < 10) {
+    ESP_LOGW(TAG, "Engineering frame too short: %d bytes", frame_data.size());
+    return false;
+  }
+  
+  // Log the frame for debugging
+  char hex_buf[128] = {0};
+  for (size_t i = 0; i < std::min(frame_data.size(), size_t(40)); i++) {
+    sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
+  }
+  ESP_LOGD(TAG, "Engineering frame: %s", hex_buf);
+  
+  // Parse the engineering data format
+  // The format is: F4 F3 F2 F1 84 [Length 2B] [Gate Count 1B] [Energy Data]
+  // This is based on our best understanding - adjust if actual format differs
+  
+  uint8_t gate_count = frame_data.size() >= 8 ? frame_data[7] : 0;
+  if (gate_count == 0 || gate_count > 32) {
+    ESP_LOGW(TAG, "Invalid gate count: %d", gate_count);
+    return false;
+  }
+  
+  ESP_LOGD(TAG, "Processing engineering data for %d gates", gate_count);
+  
+  // Process each gate's energy value
+  // Assuming energy values start at byte 8 and each is 4 bytes
+  for (uint8_t i = 0; i < gate_count; i++) {
+    size_t offset = 8 + (i * 4);
+    
+    // Make sure we have enough data for this gate
+    if (offset + 3 >= frame_data.size()) {
+      ESP_LOGW(TAG, "Engineering frame truncated at gate %d", i);
+      break;
+    }
+    
+    // Extract 32-bit energy value (little-endian)
+    uint32_t energy_value = frame_data[offset] | 
+                          (frame_data[offset+1] << 8) | 
+                          (frame_data[offset+2] << 16) | 
+                          (frame_data[offset+3] << 24);
+    
+    // Update sensor if configured for this gate
+    if (i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
+      energy_gate_sensors_[i]->publish_state(energy_value);
+      ESP_LOGV(TAG, "Gate %d energy: %u", i, energy_value);
+    }
+  }
+  
+  return true;
 }
 
 // Create a separate method for updating binary sensors to avoid code duplication

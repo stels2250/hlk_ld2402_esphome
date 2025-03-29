@@ -16,6 +16,7 @@ static const uint8_t FRAME_FOOTER[] = {0x04, 0x03, 0x02, 0x01};
 // Add new frame format constants
 static const uint8_t DATA_FRAME_HEADER[] = {0xF4, 0xF3, 0xF2, 0xF1}; // Data frame header
 static const uint8_t DATA_FRAME_TYPE_DISTANCE = 0x83; // Distance data frame type
+static const uint8_t DATA_FRAME_TYPE_ENGINEERING = 0x84; // Engineering data frame type
 
 // Commands
 static const uint16_t CMD_GET_VERSION = 0x0000;  // Changed from 0x0001 to 0x0000
@@ -62,6 +63,8 @@ static constexpr float MICROMOVEMENT_RANGE = 6.0f;     // Max 6m for micro-movem
 static constexpr float STATIC_RANGE = 5.0f;            // Max 5m for static detection
 static constexpr float DISTANCE_PRECISION = 0.15f;     // ±0.15m accuracy
 static constexpr float DISTANCE_GATE_SIZE = 0.7f;      // 0.7m per gate
+static const uint8_t MAX_GATES = 32;                   // Hardware maximum gates
+static const uint8_t DEFAULT_GATES = 14;               // Default number of gates (covers ~9.8m)
 
 // Add calibration coefficients
 static const uint8_t DEFAULT_COEFF = 0x1E;  // Default coefficient (3.0)
@@ -89,6 +92,16 @@ public:
   }
   
   void set_calibration_progress_sensor(sensor::Sensor *calibration_progress) { calibration_progress_sensor_ = calibration_progress; }
+  
+  void set_energy_gate_sensor(uint8_t gate_index, sensor::Sensor *energy_sensor) {
+    if (gate_index < MAX_GATES) {  // Use the constant for consistency
+      if (energy_gate_sensors_.size() <= gate_index) {
+        energy_gate_sensors_.resize(gate_index + 1, nullptr);
+      }
+      energy_gate_sensors_[gate_index] = energy_sensor;
+      engineering_data_enabled_ = true; // Enable engineering data processing
+    }
+  }
   
   void setup() override;
   void loop() override;
@@ -136,6 +149,7 @@ protected:
 
   bool parse_data_frame_(const std::vector<uint8_t> &frame_data);
   bool process_distance_frame_(const std::vector<uint8_t> &frame_data);
+  bool process_engineering_data_(const std::vector<uint8_t> &frame_data);
   void update_binary_sensors_(float distance_cm);  // New helper method
 
 private:
@@ -165,6 +179,8 @@ private:
   std::string operating_mode_{"Normal"};  // Track the current operating mode
   uint32_t last_distance_update_{0};   // Time of last distance sensor update
   uint32_t distance_throttle_ms_{2000}; // Default throttle of 2 seconds
+  std::vector<sensor::Sensor *> energy_gate_sensors_; // Store gate sensors
+  bool engineering_data_enabled_{false}; // Flag to enable engineering data processing
 };
 
 }  // namespace hlk_ld2402
