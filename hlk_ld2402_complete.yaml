@@ -54,7 +54,7 @@ sensor:
     filters:
       - throttle: 2s
 
-# Control buttons - using template buttons instead of custom platform
+# Control buttons - using template buttons 
 button:
   - platform: template
     name: "Calibrate"
@@ -75,6 +75,15 @@ button:
     name: "Engineering Mode"
     on_press:
       - lambda: id(radar_sensor).set_engineering_mode();
+      
+  # New factory reset button - add a warning icon
+  - platform: template
+    name: "Factory Reset"
+    icon: "mdi:factory-reset"
+    on_press:
+      # Add a warning log message before reset
+      - logger.log: "WARNING: Performing factory reset on radar module"
+      - lambda: id(radar_sensor).factory_reset();
 
 # Add status LED if available
 status_led:

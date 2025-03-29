@@ -36,8 +36,8 @@ void HLKLD2402Component::setup() {
   ESP_LOGI(TAG, "LD2402 appears to be sending data already. Skipping configuration.");
   ESP_LOGI(TAG, "Use the Engineering Mode button if you need to modify settings.");
   
-  // Check for power interference when starting up
-  check_power_interference();
+  // Don't check power interference immediately - use a delayed operation
+  ESP_LOGI(TAG, "Will check power interference status after 60 seconds");
 }
 
 void HLKLD2402Component::loop() {
@@ -52,19 +52,20 @@ void HLKLD2402Component::loop() {
   static uint32_t byte_count = 0;
   static uint8_t last_bytes[16] = {0};
   static size_t last_byte_pos = 0;
-  static uint32_t last_interference_check_time = 0;
+  static bool power_check_done = false;
+  static uint32_t startup_time = millis();
+  
+  // One-time power interference check after 60 seconds of operation
+  if (!power_check_done && (millis() - startup_time) > 60000) {
+    ESP_LOGI(TAG, "Performing one-time power interference check");
+    check_power_interference();
+    power_check_done = true;
+  }
   
   // Add periodic debug message - reduce frequency
   if (millis() - last_debug_time > 30000) {  // Every 30 seconds
     ESP_LOGD(TAG, "Waiting for data. Available bytes: %d", available());
     last_debug_time = millis();
-  }
-  
-  // Periodically check power interference (every 5 minutes)
-  if (millis() - last_interference_check_time > 300000) {
-    ESP_LOGI(TAG, "Performing periodic power interference check");
-    check_power_interference();
-    last_interference_check_time = millis();
   }
   
   // Every 10 seconds, report status
@@ -575,6 +576,13 @@ void HLKLD2402Component::enable_auto_gain() {
 void HLKLD2402Component::check_power_interference() {
   ESP_LOGD(TAG, "Checking power interference status");
   
+  // Clear any pending data first
+  flush();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+  }
+  
   // With periodic checks in loop(), we don't want to fail if entering config mode fails
   // For now, just return default value
   bool was_in_config = config_mode_;
@@ -590,6 +598,9 @@ void HLKLD2402Component::check_power_interference() {
       return;
     }
   }
+  
+  // Add more delay after entering config mode
+  delay(200);
   
   uint32_t value;
   if (get_parameter_(PARAM_POWER_INTERFERENCE, value)) {
@@ -610,6 +621,12 @@ void HLKLD2402Component::check_power_interference() {
     }
   } else {
     ESP_LOGE(TAG, "Failed to get power interference parameter");
+    
+    // Still update the sensor on failure
+    if (this->power_interference_binary_sensor_ != nullptr) {
+      this->power_interference_binary_sensor_->publish_state(false);
+      ESP_LOGW(TAG, "Parameter read failed, setting power interference to OFF by default");
+    }
   }
   
   // Exit config mode if we entered it just for this check
@@ -626,6 +643,78 @@ uint32_t HLKLD2402Component::db_to_threshold_(float db_value) {
 
 float HLKLD2402Component::threshold_to_db_(uint32_t threshold) {
   return 10 * log10(threshold);
+}
+
+void HLKLD2402Component::factory_reset() {
+  ESP_LOGI(TAG, "Performing factory reset...");
+  
+  if (!enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode for factory reset");
+    return;
+  }
+  
+  bool success = true;
+  
+  // Reset max distance to 5 meters (500cm = 0x01F4)
+  ESP_LOGI(TAG, "Resetting max distance to default (5m)");
+  if (!set_parameter_(PARAM_MAX_DISTANCE, 100)) {  // 100 = 10.0m when divided by 10
+    ESP_LOGE(TAG, "Failed to reset max distance");
+    success = false;
+  }
+  
+  // Reset target timeout to 5 seconds
+  ESP_LOGI(TAG, "Resetting target timeout to default (5s)");
+  if (!set_parameter_(PARAM_TIMEOUT, 5)) {
+    ESP_LOGE(TAG, "Failed to reset target timeout");
+    success = false;
+  }
+  
+  // Reset motion threshold values for all distance gates
+  ESP_LOGI(TAG, "Resetting threshold values");
+  for (uint16_t i = 0; i < 16; i++) {
+    uint16_t trigger_param_id = PARAM_TRIGGER_THRESHOLD + i;
+    uint16_t micro_param_id = PARAM_MICRO_THRESHOLD + i;
+    
+    // Default threshold is coefficient 3.0 = 0x001E in hex
+    uint32_t default_threshold = db_to_threshold_(30.0);  // 30dB is approx default
+    
+    if (!set_parameter_(trigger_param_id, default_threshold)) {
+      ESP_LOGW(TAG, "Failed to reset trigger threshold for gate %u", i);
+      success = false;
+    }
+    
+    if (!set_parameter_(micro_param_id, default_threshold)) {
+      ESP_LOGW(TAG, "Failed to reset micro threshold for gate %u", i);
+      success = false;
+    }
+  }
+  
+  // Save the reset parameters
+  ESP_LOGI(TAG, "Saving factory reset configuration");
+  if (send_command_(CMD_SAVE_PARAMS)) {
+    std::vector<uint8_t> response;
+    if (read_response_(response) && response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+      ESP_LOGI(TAG, "Factory reset configuration saved successfully");
+    } else {
+      ESP_LOGE(TAG, "Failed to save factory reset configuration");
+      success = false;
+    }
+  } else {
+    ESP_LOGE(TAG, "Failed to send save command for factory reset");
+    success = false;
+  }
+  
+  // Exit config mode
+  if (!exit_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to exit config mode after factory reset");
+    success = false;
+  }
+  
+  if (success) {
+    ESP_LOGI(TAG, "Factory reset completed successfully");
+  } else {
+    ESP_LOGW(TAG, "Factory reset completed with some errors");
+  }
 }
 
 }  // namespace hlk_ld2402

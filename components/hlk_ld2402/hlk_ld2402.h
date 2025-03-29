@@ -79,6 +79,7 @@ public:
   void save_config();
   void enable_auto_gain();
   void check_power_interference();
+  void factory_reset();  // Add new factory reset method
   
   // Add a new public method to set the work mode
   void set_engineering_mode() {
