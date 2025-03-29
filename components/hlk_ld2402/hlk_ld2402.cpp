@@ -1177,14 +1177,15 @@ void HLKLD2402Component::set_engineering_mode() {
       read_byte(&c);
     }
     
-    ESP_LOGI(TAG, "Engineering mode activated. Waiting for data frames...");
+    // Enable receiving engineering data
+    engineering_data_enabled_ = true;
+    ESP_LOGI(TAG, "Engineering mode activated and data reception enabled. Waiting for data frames...");
   } else {
     ESP_LOGE(TAG, "Engineering mode command failed: Unexpected response");
     exit_config_mode_();
   }
 }
 
-// Update the normal mode method to handle complete switch
 void HLKLD2402Component::set_normal_mode() {
   ESP_LOGI(TAG, "Switching to normal mode...");
   
