@@ -414,6 +414,34 @@ void HLKLD2402Component::loop() {
   if (!line_buffer_.empty() && (millis() - last_byte_time > TIMEOUT_MS)) {
     line_buffer_.clear();
   }
+
+  // Check calibration progress if needed
+  if (calibration_in_progress_ && calibration_progress_sensor_ != nullptr) {
+    uint32_t now = millis();
+    if (now - last_calibration_check_ >= 5000) { // Check every 5 seconds
+      last_calibration_check_ = now;
+      
+      if (send_command_(CMD_GET_CALIBRATION_STATUS)) {
+        std::vector<uint8_t> response;
+        if (read_response_(response) && response.size() >= 4) {
+          // Per protocol section 5.2.10, response format:
+          // 2 bytes ACK status + 2 bytes percentage
+          uint16_t progress = response[2] | (response[3] << 8);
+          calibration_progress_ = progress;
+          
+          ESP_LOGI(TAG, "Calibration progress: %u%%", progress);
+          this->calibration_progress_sensor_->publish_state(progress);
+          
+          // Check if calibration is complete
+          if (progress >= 100) {
+            ESP_LOGI(TAG, "Calibration complete");
+            calibration_in_progress_ = false;
+            exit_config_mode_();
+          }
+        }
+      }
+    }
+  }
 }
 
 // Add new method to parse distance data frames
@@ -867,24 +895,19 @@ void HLKLD2402Component::calibrate() {
   if (send_command_(CMD_START_CALIBRATION, data, sizeof(data))) {
     ESP_LOGI(TAG, "Started calibration");
     
-    uint32_t start = millis();
-    while ((millis() - start) < 30000) {  // 30 second timeout
-      if (send_command_(CMD_GET_CALIBRATION_STATUS)) {
-        std::vector<uint8_t> response;
-        if (read_response_(response) && response.size() >= 4) {
-          // Per protocol section 5.2.10, response format:
-          // 2 bytes ACK status + 2 bytes percentage
-          uint16_t progress = response[2] | (response[3] << 8);
-          ESP_LOGI(TAG, "Calibration progress: %u%%", progress);
-          if (progress == 100)
-            break;
-        }
-      }
-      delay(1000);
+    // Set calibration flags and initialize progress
+    calibration_in_progress_ = true;
+    calibration_progress_ = 0;
+    last_calibration_check_ = millis();
+    
+    // Publish initial progress
+    if (this->calibration_progress_sensor_ != nullptr) {
+      this->calibration_progress_sensor_->publish_state(0);
     }
+  } else {
+    ESP_LOGE(TAG, "Failed to start calibration");
+    exit_config_mode_();
   }
-  
-  exit_config_mode_();
 }
 
 // Update save_config method to use correct command per documentation section 5.3

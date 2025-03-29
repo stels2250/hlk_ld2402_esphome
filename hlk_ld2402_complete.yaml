@@ -52,6 +52,16 @@ sensor:
     unit_of_measurement: "cm"
     accuracy_decimals: 1
     throttle: 2000ms  # 2 second throttle directly in the component
+    
+  # Calibration progress sensor
+  - platform: hlk_ld2402
+    calibration_progress: true
+    id: radar_calibration_progress
+    name: "Radar Calibration Progress"
+    hlk_ld2402_id: radar_sensor
+    unit_of_measurement: "%"
+    icon: "mdi:progress-wrench"
+    entity_category: diagnostic
 
 # Text sensors
 text_sensor:

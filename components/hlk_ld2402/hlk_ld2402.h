@@ -88,6 +88,8 @@ public:
     this->operating_mode_text_sensor_ = mode_sensor;
   }
   
+  void set_calibration_progress_sensor(sensor::Sensor *calibration_progress) { calibration_progress_sensor_ = calibration_progress; }
+  
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -143,6 +145,7 @@ private:
   static const uint32_t RESPONSE_TIMEOUT_MS = 1000;
   
   sensor::Sensor *distance_sensor_{nullptr};
+  sensor::Sensor *calibration_progress_sensor_{nullptr};
   binary_sensor::BinarySensor *presence_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *micromovement_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *power_interference_binary_sensor_{nullptr};
@@ -158,6 +161,8 @@ private:
   bool power_interference_detected_{false};
   uint32_t last_calibration_status_{0};
   bool calibration_in_progress_{false};
+  uint32_t last_calibration_check_{0};   // Time of last calibration check
+  uint32_t calibration_progress_{0};     // Current calibration progress (0-100)
   std::string serial_number_; // Add field to store serial number
   std::string operating_mode_{"Normal"};  // Track the current operating mode
   uint32_t last_distance_update_{0};   // Time of last distance sensor update
