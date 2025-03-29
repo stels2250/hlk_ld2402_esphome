@@ -20,11 +20,6 @@ hlk_ld2402:
   id: radar_sensor
   max_distance: 5.0
   timeout: 5
-  # Updated configuration for firmware version text sensor
-  firmware_version:
-    id: radar_firmware_version
-    name: "Radar Firmware Version"
-    entity_category: diagnostic
 
 # Binary sensors
 binary_sensor:
@@ -59,6 +54,14 @@ sensor:
     filters:
       - throttle: 2s
 
+# Add text sensor section
+text_sensor:
+  - platform: hlk_ld2402
+    id: radar_firmware_version
+    name: "Radar Firmware Version"
+    entity_category: diagnostic
+    hlk_ld2402_id: radar_sensor
+
 # Control buttons - using template buttons 
 button:
   - platform: template
@@ -89,8 +92,6 @@ button:
       # Add a warning log message before reset
       - logger.log: "WARNING: Performing factory reset on radar module"
       - lambda: id(radar_sensor).factory_reset();
-
-# Remove the separate text_sensor section as it's now integrated directly in the hlk_ld2402 component
 
 # Add status LED if available
 status_led:
