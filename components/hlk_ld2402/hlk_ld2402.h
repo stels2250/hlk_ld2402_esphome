@@ -73,6 +73,7 @@ public:
   float get_setup_priority() const override { return setup_priority::LATE; }
 
   void set_distance_sensor(sensor::Sensor *distance_sensor) { distance_sensor_ = distance_sensor; }
+  void set_distance_throttle(uint32_t throttle_ms) { distance_throttle_ms_ = throttle_ms; }
   void set_presence_binary_sensor(binary_sensor::BinarySensor *presence) { presence_binary_sensor_ = presence; }
   void set_micromovement_binary_sensor(binary_sensor::BinarySensor *micro) { micromovement_binary_sensor_ = micro; }
   void set_power_interference_binary_sensor(binary_sensor::BinarySensor *power_interference) { power_interference_binary_sensor_ = power_interference; }
@@ -158,6 +159,8 @@ private:
   bool calibration_in_progress_{false};
   std::string serial_number_; // Add field to store serial number
   std::string operating_mode_{"Normal"};  // Track the current operating mode
+  uint32_t last_distance_update_{0};   // Time of last distance sensor update
+  uint32_t distance_throttle_ms_{2000}; // Default throttle of 2 seconds
 };
 
 }  // namespace hlk_ld2402

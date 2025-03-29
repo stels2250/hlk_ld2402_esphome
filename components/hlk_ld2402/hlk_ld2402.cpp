@@ -464,15 +464,24 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
     }
   }
   
-  // If we found a valid distance, update our sensors
+  // If we found a valid distance, update our sensors with throttling
   if (min_distance_cm > 0) {
     ESP_LOGI(TAG, "Detected distance (from binary frame): %.1f cm", min_distance_cm);
     
+    uint32_t now = millis();
+    
+    // Update distance sensor with throttling
     if (this->distance_sensor_ != nullptr) {
-      this->distance_sensor_->publish_state(min_distance_cm);
+      if (now - last_distance_update_ >= distance_throttle_ms_) {
+        this->distance_sensor_->publish_state(min_distance_cm);
+        last_distance_update_ = now;
+        ESP_LOGD(TAG, "Updated distance sensor (throttled)");
+      } else {
+        ESP_LOGV(TAG, "Skipped distance update due to throttling");
+      }
     }
     
-    // Update presence states based on documented ranges
+    // Always update binary sensors - they don't need throttling
     if (this->presence_binary_sensor_ != nullptr) {
       bool is_presence = min_distance_cm <= (STATIC_RANGE * 100);
       this->presence_binary_sensor_->publish_state(is_presence);
@@ -556,11 +565,20 @@ void HLKLD2402Component::process_line_(const std::string &line) {
   }
   
   if (valid_distance) {
+    uint32_t now = millis();
+    
+    // Update distance sensor with throttling
     if (this->distance_sensor_ != nullptr) {
-      this->distance_sensor_->publish_state(distance_cm);
+      if (now - last_distance_update_ >= distance_throttle_ms_) {
+        this->distance_sensor_->publish_state(distance_cm);
+        last_distance_update_ = now;
+        ESP_LOGD(TAG, "Updated distance sensor from text data (throttled)");
+      } else {
+        ESP_LOGV(TAG, "Skipped distance update from text data due to throttling");
+      }
     }
     
-    // Update presence states based on documented ranges
+    // Always update binary sensors - they don't need throttling
     if (this->presence_binary_sensor_ != nullptr) {
       bool is_presence = distance_cm <= (STATIC_RANGE * 100);
       this->presence_binary_sensor_->publish_state(is_presence);
