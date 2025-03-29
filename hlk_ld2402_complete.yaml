@@ -20,10 +20,10 @@ hlk_ld2402:
   id: radar_sensor
   max_distance: 5.0
   timeout: 5
-  # Changed from firmware_version_sensor to firmware_version
+  # Updated configuration for firmware version text sensor
   firmware_version:
-    name: "Radar Firmware Version"
     id: radar_firmware_version
+    name: "Radar Firmware Version"
     entity_category: diagnostic
 
 # Binary sensors

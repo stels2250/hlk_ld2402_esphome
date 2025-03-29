@@ -4,13 +4,13 @@ from esphome.components import uart, text_sensor
 from esphome.const import CONF_ID, CONF_TIMEOUT, ENTITY_CATEGORY_DIAGNOSTIC
 
 # Make sure text_sensor is listed as a direct dependency
-DEPENDENCIES = ["uart", "text_sensor"]  # Explicitly add text_sensor here
-AUTO_LOAD = ["sensor", "binary_sensor"]  
+DEPENDENCIES = ["uart", "text_sensor"]
+AUTO_LOAD = ["sensor", "binary_sensor"]
 
 # Define our own constants
 CONF_MAX_DISTANCE = "max_distance"
-CONF_HLK_LD2402_ID = "hlk_ld2402_id"
-CONF_FIRMWARE_VERSION = "firmware_version"  # Changed from "firmware_version_sensor"
+CONF_HLK_LD2402_ID = "hlk_ld2402_id" 
+CONF_FIRMWARE_VERSION = "firmware_version"
 
 hlk_ld2402_ns = cg.esphome_ns.namespace("hlk_ld2402")
 HLKLD2402Component = hlk_ld2402_ns.class_(
@@ -22,9 +22,12 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HLKLD2402Component),
     cv.Optional(CONF_MAX_DISTANCE, default=5.0): cv.float_range(min=0.7, max=10.0),
     cv.Optional(CONF_TIMEOUT, default=5): cv.int_range(min=0, max=65535),
-    cv.Optional(CONF_FIRMWARE_VERSION): text_sensor.text_sensor_schema(
-        entity_category=ENTITY_CATEGORY_DIAGNOSTIC
-    ),
+    # Use a simpler way to define text sensor
+    cv.Optional(CONF_FIRMWARE_VERSION): cv.Schema({
+        cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
+        cv.Optional("name", default="Firmware Version"): cv.string,
+        cv.Optional("entity_category", default=ENTITY_CATEGORY_DIAGNOSTIC): cv.string,
+    }),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 async def to_code(config):
@@ -40,5 +43,6 @@ async def to_code(config):
     # Add firmware version text sensor if configured
     if CONF_FIRMWARE_VERSION in config:
         fw_config = config[CONF_FIRMWARE_VERSION]
-        fw_sensor = await text_sensor.new_text_sensor(fw_config)
+        fw_sensor = await cg.new_Pvariable(fw_config[CONF_ID])
+        await text_sensor.register_text_sensor(fw_sensor, fw_config)
         cg.add(var.set_firmware_version_text_sensor(fw_sensor))
