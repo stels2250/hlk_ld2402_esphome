@@ -59,9 +59,11 @@ void HLKLD2402Component::get_firmware_version_() {
   if (!config_mode_) {
     if (!enter_config_mode_()) {
       ESP_LOGW(TAG, "Failed to enter config mode for firmware version check");
+#ifdef USE_TEXT_SENSOR
       if (firmware_version_text_sensor_ != nullptr) {
         firmware_version_text_sensor_->publish_state("Unknown");
       }
+#endif
       return;
     }
     entered_config_mode = true;
@@ -70,9 +72,11 @@ void HLKLD2402Component::get_firmware_version_() {
   // Send version command
   if (!send_command_(CMD_GET_VERSION)) {
     ESP_LOGW(TAG, "Failed to send version command");
+#ifdef USE_TEXT_SENSOR
     if (firmware_version_text_sensor_ != nullptr) {
       firmware_version_text_sensor_->publish_state("Unknown");
     }
+#endif
     
     if (entered_config_mode) {
       exit_config_mode_();
@@ -102,15 +106,19 @@ void HLKLD2402Component::get_firmware_version_() {
       ESP_LOGI(TAG, "Firmware version: %s", version);
     }
     
+#ifdef USE_TEXT_SENSOR
     // Publish version to Home Assistant
     if (firmware_version_text_sensor_ != nullptr) {
       firmware_version_text_sensor_->publish_state(version);
     }
+#endif
   } else {
     ESP_LOGW(TAG, "No response to version command");
+#ifdef USE_TEXT_SENSOR
     if (firmware_version_text_sensor_ != nullptr) {
       firmware_version_text_sensor_->publish_state("Unknown");
     }
+#endif
   }
   
   if (entered_config_mode) {
