@@ -35,3 +35,30 @@ async def to_code(config):
         cg.add(var.set_max_distance(config[CONF_MAX_DISTANCE]))
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
+
+# Register services for setting individual gate thresholds
+@register_service(
+    "set_gate_motion_threshold", 
+    fields={
+        cv.Required("gate"): cv.int_range(min=0, max=15),
+        cv.Required("db_value"): cv.float_range(min=0, max=95),
+    }
+)
+async def gate_motion_threshold_service(component, call):
+    """Set the motion threshold for a specific gate."""
+    gate = call.data["gate"] 
+    db_value = call.data["db_value"]
+    await component.set_gate_motion_threshold(gate, db_value)
+
+@register_service(
+    "set_gate_micromotion_threshold", 
+    fields={
+        cv.Required("gate"): cv.int_range(min=0, max=15),
+        cv.Required("db_value"): cv.float_range(min=0, max=95),
+    }
+)
+async def gate_micromotion_threshold_service(component, call):
+    """Set the micromotion threshold for a specific gate."""
+    gate = call.data["gate"]
+    db_value = call.data["db_value"]
+    await component.set_gate_micromotion_threshold(gate, db_value)

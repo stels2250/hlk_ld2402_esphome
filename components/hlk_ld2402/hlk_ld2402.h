@@ -126,6 +126,16 @@ public:
   bool set_micromotion_threshold(uint8_t gate, float db_value);
   bool calibrate_with_coefficients(float trigger_coeff, float hold_coeff, float micromotion_coeff);
 
+  // Service for setting motion threshold for a specific gate
+  void set_gate_motion_threshold(int gate, float db_value) {
+    set_motion_threshold(gate, db_value);
+  }
+  
+  // Service for setting micromotion threshold for a specific gate
+  void set_gate_micromotion_threshold(int gate, float db_value) {
+    set_micromotion_threshold(gate, db_value);
+  }
+
 protected:
   bool enter_config_mode_();
   bool enter_config_mode_quick_();  // New quick entry method

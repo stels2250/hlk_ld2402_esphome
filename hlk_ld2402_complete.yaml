@@ -245,6 +245,64 @@ number:
     icon: "mdi:tune-vertical"
     unit_of_measurement: "x"
 
+  # Motion threshold sliders for gates
+  - platform: template
+    name: "Gate 0 Motion Threshold"
+    id: gate_0_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(0, id(gate_0_motion_threshold).state);
+  
+  - platform: template
+    name: "Gate 1 Motion Threshold"
+    id: gate_1_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(1, id(gate_1_motion_threshold).state);
+  
+  # Micromotion threshold sliders for gates
+  - platform: template
+    name: "Gate 0 Micromotion Threshold"
+    id: gate_0_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(0, id(gate_0_micromotion_threshold).state);
+  
+  - platform: template
+    name: "Gate 1 Micromotion Threshold"
+    id: gate_1_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(1, id(gate_1_micromotion_threshold).state);
+
 # Add status LED if available
 status_led:
   pin: GPIO2
