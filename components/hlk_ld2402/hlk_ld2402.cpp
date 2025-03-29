@@ -339,16 +339,29 @@ bool HLKLD2402Component::enter_config_mode_() {
           }
           ESP_LOGI(TAG, "Response: %s", hex_buf);
           
-          // FIXED: Check if response indicates success
-          // Response format: Length (2) + Command ID (2) + Status (2) + Return value (N)
-          // For command 0x00FF, return value is Protocol version (2) + Buffer size (2)
-          if (response.size() >= 4 && 
+          // Looking at logs, the response is: "08 00 FF 01 00 00 02 00 20 00"
+          // Format: Length (2) + Command ID (FF 01) + Status (00 00) + Protocol version (02 00) + Buffer size (20 00)
+          // We need to check indexes 4-5 for status (00 00)
+          if (response.size() >= 6 && 
+              response[0] == 0xFF && response[1] == 0x01 && 
               response[2] == 0x00 && response[3] == 0x00) {
             config_mode_ = true;
             ESP_LOGI(TAG, "Successfully entered config mode");
             return true;
+          } else if (response.size() >= 6 && 
+                    response[4] == 0x00 && response[5] == 0x00) {
+            // Alternative format sometimes seen
+            config_mode_ = true;
+            ESP_LOGI(TAG, "Successfully entered config mode (alt format)");
+            return true;
           } else {
-            ESP_LOGW(TAG, "Invalid config mode response format - expected 00 00 status");
+            ESP_LOGW(TAG, "Invalid config mode response format - expected status 00 00");
+            
+            // Trace each byte to help diagnose the issue
+            ESP_LOGW(TAG, "Response details: %d bytes", response.size());
+            for (size_t i = 0; i < response.size() && i < 10; i++) {
+                ESP_LOGW(TAG, "  Byte[%d] = 0x%02X", i, response[i]);
+            }
           }
         }
       }
