@@ -101,6 +101,60 @@ void HLKLD2402Component::loop() {
       raw_pos = 0;
     }
     
+    // Check for beginning of binary frame header - IMPORTANT: Skip entire protocol frames
+    if (c == FRAME_HEADER[0]) {
+      // This is likely the start of a binary frame
+      // Check if we have enough bytes to verify it's a frame header
+      int header_match_count = 1;
+      uint32_t peek_start = millis();
+      
+      // Try to consume the entire frame header and skip it
+      while (header_match_count < 4 && (millis() - peek_start) < 100) {
+        if (available()) {
+          uint8_t next;
+          read_byte(&next);
+          byte_count++;
+          
+          if (next == FRAME_HEADER[header_match_count]) {
+            header_match_count++;
+          } else {
+            // Not a frame header, add the bytes to the line buffer
+            line_buffer_ += (char)c;
+            line_buffer_ += (char)next;
+            break;
+          }
+        }
+        yield();
+      }
+      
+      // If we matched the complete header, discard the entire frame
+      if (header_match_count == 4) {
+        ESP_LOGD(TAG, "Detected binary protocol frame - skipping");
+        
+        // Skip the rest of this frame until we see footer or timeout
+        uint32_t skip_start = millis();
+        uint8_t footer_match = 0;
+        
+        while (footer_match < 4 && (millis() - skip_start) < 200) {
+          if (available()) {
+            uint8_t frame_byte;
+            read_byte(&frame_byte);
+            byte_count++;
+            
+            if (frame_byte == FRAME_FOOTER[footer_match]) {
+              footer_match++;
+            } else {
+              footer_match = 0;
+            }
+          }
+          yield();
+        }
+        
+        // Frame skipped, continue with next data
+        continue;
+      }
+    }
+    
     if (c == '\n') {
       // Process complete line, but check throttling first
       if (!line_buffer_.empty()) {
@@ -108,8 +162,22 @@ void HLKLD2402Component::loop() {
         
         if (should_process) {
           last_process_time = millis();
-          ESP_LOGI(TAG, "Received line: '%s'", line_buffer_.c_str());
-          process_line_(line_buffer_);
+          
+          // Only process if it looks like text
+          bool is_binary = false;
+          for (char ch : line_buffer_) {
+            if (ch < 32 && ch != '\t' && ch != '\r') {
+              is_binary = true;
+              break;
+            }
+          }
+          
+          if (!is_binary) {
+            ESP_LOGI(TAG, "Received line: '%s'", line_buffer_.c_str());
+            process_line_(line_buffer_);
+          } else {
+            ESP_LOGD(TAG, "Skipped binary data that looks like a protocol frame");
+          }
         }
         line_buffer_.clear();
       }
@@ -483,7 +551,7 @@ void HLKLD2402Component::enable_auto_gain() {
 }
 
 void HLKLD2402Component::check_power_interference() {
-  ESP_LOGI(TAG, "Checking power interference status");  // Make this an INFO level log
+  ESP_LOGI(TAG, "Checking power interference status");
   
   // Clear any pending data first
   flush();
@@ -499,92 +567,93 @@ void HLKLD2402Component::check_power_interference() {
     if (!enter_config_mode_()) {
       ESP_LOGE(TAG, "Failed to enter config mode for power interference check");
       
-      // Update sensor with default value
+      // Show ERROR state if the check fails
       if (this->power_interference_binary_sensor_ != nullptr) {
-        this->power_interference_binary_sensor_->publish_state(false);
-        ESP_LOGW(TAG, "Config mode failed, setting power interference to OFF by default");
+        this->power_interference_binary_sensor_->publish_state(true);  // Show interference/error
+        ESP_LOGE(TAG, "Setting power interference to ON (ERROR) due to config mode failure");
       }
       return;
     }
     entered_config_mode = true;
   }
   
-  // Add a MUCH longer delay after entering config mode
+  // Add a longer delay after entering config mode
   ESP_LOGI(TAG, "Waiting for device to be ready for parameter request...");
   delay(1000);  // Wait a full second before sending the next command
   
-  uint32_t value = 0;
-  bool success = false;
+  // Don't use get_parameter_ function here, implement specific version for power interference
+  ESP_LOGI(TAG, "Sending power interference parameter request");
+  uint8_t data[2];
+  data[0] = PARAM_POWER_INTERFERENCE & 0xFF;
+  data[1] = (PARAM_POWER_INTERFERENCE >> 8) & 0xFF;
   
-  // Try multiple times with longer delays between attempts
-  for (int attempt = 0; attempt < 2; attempt++) {
-    ESP_LOGI(TAG, "Retrieving power interference parameter (attempt %d)", attempt + 1);
+  if (!send_command_(CMD_GET_PARAMS, data, sizeof(data))) {
+    ESP_LOGE(TAG, "Failed to send power interference parameter request");
     
-    // Send the command directly rather than using get_parameter_
-    uint8_t data[2];
-    data[0] = PARAM_POWER_INTERFERENCE & 0xFF;
-    data[1] = (PARAM_POWER_INTERFERENCE >> 8) & 0xFF;
-    
-    if (!send_command_(CMD_GET_PARAMS, data, sizeof(data))) {
-      ESP_LOGE(TAG, "Failed to send get parameter command");
-      delay(1000);
-      continue;
+    // Update sensor to show ERROR/interference
+    if (this->power_interference_binary_sensor_ != nullptr) {
+      this->power_interference_binary_sensor_->publish_state(true);
+      ESP_LOGE(TAG, "Setting power interference to ON (ERROR) due to command failure");
     }
     
-    // Wait longer before trying to read response
-    delay(1000);
-    
-    // Use a much longer timeout - 6 seconds
-    std::vector<uint8_t> response;
-    if (read_response_(response, 6000)) {
-      // Log the raw response
-      char hex_buf[64] = {0};
-      for (size_t i = 0; i < response.size() && i < 16; i++) {
-        sprintf(hex_buf + (i*3), "%02X ", response[i]);
-      }
-      ESP_LOGI(TAG, "Power interference parameter response: %s", hex_buf);
-      
-      // Parse response if we have enough data
-      if (response.size() >= 6) {
-        value = response[2] | (response[3] << 8) | (response[4] << 16) | (response[5] << 24);
-        ESP_LOGI(TAG, "Power interference status value: %u", value);
-        success = true;
-        break;
-      } else if (response.size() >= 2) {
-        value = response[0] | (response[1] << 8);
-        ESP_LOGI(TAG, "Short power interference response, value: %u", value);
-        success = true;
-        break;
-      }
+    // Still try to exit config mode if we entered it
+    if (entered_config_mode) {
+      ESP_LOGI(TAG, "Exiting config mode");
+      send_command_(CMD_DISABLE_CONFIG);
+      delay(200);
+      config_mode_ = false;
     }
-    
-    // Wait longer between attempts
-    delay(1000);
+    return;
   }
   
-  if (success) {
-    power_interference_detected_ = (value == 2);
-    ESP_LOGI(TAG, "Power interference status: %u", value);
+  // Wait MUCH longer before trying to read response - this seems to be the key issue
+  delay(2000);
+  
+  // Use a very long timeout - 10 seconds
+  std::vector<uint8_t> response;
+  bool success = false;
+  ESP_LOGI(TAG, "Waiting for power interference parameter response (10s timeout)...");
+  
+  if (read_response_(response, 10000)) {
+    // Log the raw response
+    char hex_buf[64] = {0};
+    for (size_t i = 0; i < response.size() && i < 16; i++) {
+      sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    }
+    ESP_LOGI(TAG, "Power interference parameter response: %s", hex_buf);
     
-    // Update binary sensor
-    if (this->power_interference_binary_sensor_ != nullptr) {
+    // Parse response if we have enough data
+    if (response.size() >= 6) {
+      uint32_t value = response[2] | (response[3] << 8) | (response[4] << 16) | (response[5] << 24);
+      power_interference_detected_ = (value == 2);
+      ESP_LOGI(TAG, "Power interference status value: %u (%s)", value, 
+               power_interference_detected_ ? "INTERFERENCE DETECTED" : "No interference");
+      success = true;
+    } else if (response.size() >= 2) {
+      uint32_t value = response[0] | (response[1] << 8);
+      power_interference_detected_ = (value == 2);
+      ESP_LOGI(TAG, "Short power interference response, value: %u (%s)", value,
+               power_interference_detected_ ? "INTERFERENCE DETECTED" : "No interference");
+      success = true;
+    }
+  } else {
+    ESP_LOGE(TAG, "No response to power interference parameter request (timeout)");
+  }
+  
+  // Update binary sensor based on the result of the check
+  if (this->power_interference_binary_sensor_ != nullptr) {
+    if (success) {
       this->power_interference_binary_sensor_->publish_state(power_interference_detected_);
       ESP_LOGI(TAG, "Updated power interference binary sensor to: %s", 
                power_interference_detected_ ? "ON (interference detected)" : "OFF (no interference)");
-    }
-  } else {
-    ESP_LOGW(TAG, "Failed to read power interference parameter");
-    
-    // Update sensor with default value
-    if (this->power_interference_binary_sensor_ != nullptr) {
-      this->power_interference_binary_sensor_->publish_state(false);
-      ESP_LOGW(TAG, "Using default value: OFF (no interference)");
+    } else {
+      this->power_interference_binary_sensor_->publish_state(true);  // Show error/interference
+      ESP_LOGE(TAG, "Setting power interference to ON (ERROR) due to check failure");
     }
   }
   
   // Exit config mode if we entered it in this function
   if (entered_config_mode) {
-    // Use a simplified exit method that always succeeds
     ESP_LOGI(TAG, "Exiting config mode");
     send_command_(CMD_DISABLE_CONFIG);
     delay(500);  // More delay here too
