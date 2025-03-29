@@ -463,19 +463,41 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
   data[0] = param_id & 0xFF;
   data[1] = (param_id >> 8) & 0xFF;
   
-  if (!send_command_(CMD_GET_PARAMS, data, sizeof(data)))
+  if (!send_command_(CMD_GET_PARAMS, data, sizeof(data))) {
+    ESP_LOGE(TAG, "Failed to send get parameter command");
     return false;
+  }
+  
+  // Add a small delay after sending command
+  delay(100);
     
   std::vector<uint8_t> response;
-  if (!read_response_(response))
+  if (!read_response_(response)) {
+    ESP_LOGE(TAG, "No response to get parameter command");
     return false;
-    
+  }
+  
+  // Log the response for debugging
+  char hex_buf[64] = {0};
+  for (size_t i = 0; i < response.size() && i < 16; i++) {
+    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+  }
+  ESP_LOGD(TAG, "Get parameter response: %s", hex_buf);
+  
+  // Handle response in a permissive way
   if (response.size() >= 6) {
+    // Standard response format
     value = response[2] | (response[3] << 8) | (response[4] << 16) | (response[5] << 24);
     ESP_LOGD(TAG, "Parameter 0x%04X value: %u", param_id, value);
     return true;
+  } else if (response.size() >= 2) {
+    // Shorter response, but possibly valid - use first 2 bytes
+    value = response[0] | (response[1] << 8);
+    ESP_LOGW(TAG, "Short parameter response, using value: %u", value);
+    return true;
   }
   
+  ESP_LOGE(TAG, "Invalid parameter response format");
   return false;
 }
 
@@ -629,57 +651,65 @@ void HLKLD2402Component::check_power_interference() {
     read_byte(&c);
   }
   
-  // With periodic checks in loop(), we don't want to fail if entering config mode fails
-  // For now, just return default value
-  bool was_in_config = config_mode_;
-  if (!was_in_config) {
+  // Flag to track if we entered config mode in this function
+  bool entered_config_mode = false;
+  
+  if (!config_mode_) {
     if (!enter_config_mode_()) {
       ESP_LOGE(TAG, "Failed to enter config mode for power interference check");
       
-      // Still update the sensor so it's not "unknown" - we'll assume no interference
+      // Update sensor with default value
       if (this->power_interference_binary_sensor_ != nullptr) {
         this->power_interference_binary_sensor_->publish_state(false);
         ESP_LOGW(TAG, "Config mode failed, setting power interference to OFF by default");
       }
       return;
     }
+    entered_config_mode = true;
   }
   
-  // Add more delay after entering config mode
+  // Add a delay after entering config mode
   delay(200);
   
-  uint32_t value;
-  if (get_parameter_(PARAM_POWER_INTERFERENCE, value)) {
+  uint32_t value = 0;
+  bool success = false;
+  
+  // Try multiple times to get the parameter
+  for (int attempt = 0; attempt < 2; attempt++) {
+    if (get_parameter_(PARAM_POWER_INTERFERENCE, value)) {
+      success = true;
+      break;
+    }
+    delay(100);
+  }
+  
+  if (success) {
     power_interference_detected_ = (value == 2);
     ESP_LOGI(TAG, "Power interference status: %u", value);
     
-    // Update binary sensor if available
+    // Update binary sensor
     if (this->power_interference_binary_sensor_ != nullptr) {
       this->power_interference_binary_sensor_->publish_state(power_interference_detected_);
       ESP_LOGI(TAG, "Updated power interference binary sensor to: %s", 
                power_interference_detected_ ? "ON (interference detected)" : "OFF (no interference)");
-    } else {
-      ESP_LOGW(TAG, "Power interference binary sensor not set up");
-    }
-    
-    if (power_interference_detected_) {
-      ESP_LOGW(TAG, "Power interference detected!");
     }
   } else {
-    ESP_LOGE(TAG, "Failed to get power interference parameter");
+    ESP_LOGW(TAG, "Failed to read power interference parameter");
     
-    // Still update the sensor on failure
+    // Update sensor with default value
     if (this->power_interference_binary_sensor_ != nullptr) {
       this->power_interference_binary_sensor_->publish_state(false);
-      ESP_LOGW(TAG, "Parameter read failed, setting power interference to OFF by default");
+      ESP_LOGW(TAG, "Using default value: OFF (no interference)");
     }
   }
   
-  // Exit config mode if we entered it just for this check
-  if (!was_in_config) {
-    if (!exit_config_mode_()) {
-      ESP_LOGE(TAG, "Failed to exit config mode after power interference check");
-    }
+  // Exit config mode if we entered it in this function
+  if (entered_config_mode) {
+    // Use a simplified exit method that always succeeds
+    ESP_LOGI(TAG, "Exiting config mode");
+    send_command_(CMD_DISABLE_CONFIG);
+    delay(100);
+    config_mode_ = false;
   }
 }
 
@@ -751,11 +781,11 @@ void HLKLD2402Component::factory_reset() {
   // Add a final delay before exiting config mode
   delay(500);
   
-  // Try to exit config mode - be more tolerant of errors
-  ESP_LOGI(TAG, "Attempting to exit config mode");
+  // Use safer exit pattern
+  ESP_LOGI(TAG, "Exiting config mode");
   send_command_(CMD_DISABLE_CONFIG);
   delay(200);
-  config_mode_ = false;  // Force reset the state even if exit fails
+  config_mode_ = false;
   
   ESP_LOGI(TAG, "Factory reset completed");
   
