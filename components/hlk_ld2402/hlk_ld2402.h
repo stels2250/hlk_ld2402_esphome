@@ -93,6 +93,7 @@ public:
 
 protected:
   bool enter_config_mode_();
+  bool enter_config_mode_quick_();  // New quick entry method
   bool exit_config_mode_();
   bool send_command_(uint16_t command, const uint8_t *data = nullptr, size_t len = 0);
   bool read_response_(std::vector<uint8_t> &response, uint32_t timeout_ms = 1000);  // Added timeout parameter
@@ -103,6 +104,7 @@ protected:
   void dump_hex_(const uint8_t *data, size_t len, const char* prefix);
   bool write_frame_(const std::vector<uint8_t> &frame);  // New method
   void get_firmware_version_();  // Add the missing function declaration
+  void begin_passive_version_detection_();  // New method for passive detection
 
   // Convert dB value to raw threshold
   uint32_t db_to_threshold_(float db_value);

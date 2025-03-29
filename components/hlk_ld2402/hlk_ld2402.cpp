@@ -41,164 +41,147 @@ void HLKLD2402Component::setup() {
   
   // Remove the immediate firmware version check - it will happen after 60 seconds
   // get_firmware_version_();
+  
+  // Set a default version - this will be displayed until we can determine the actual version
+  if (firmware_version_text_sensor_ != nullptr) {
+    firmware_version_text_sensor_->publish_state("HLK-LD2402");
+  }
+  
+  // Start passive version detection immediately
+  begin_passive_version_detection_();
+}
+
+// New function to passively monitor output for version info
+void HLKLD2402Component::begin_passive_version_detection_() {
+  ESP_LOGI(TAG, "Starting passive version detection");
+  firmware_version_ = "HLK-LD2402"; // Default fallback version
 }
 
 // Add new function to get firmware version
 void HLKLD2402Component::get_firmware_version_() {
   ESP_LOGI(TAG, "Retrieving firmware version...");
   
-  // Clear any pending data first
+  // Clear any pending data
   flush();
   while (available()) {
     uint8_t c;
     read_byte(&c);
   }
   
+  // First try detecting version directly from normal mode output
+  uint32_t start_time = millis();
+  std::string output_buffer;
+  bool found_version = false;
+  
+  ESP_LOGI(TAG, "Reading normal output data for 3 seconds...");
+  while ((millis() - start_time) < 3000) {
+    if (available()) {
+      uint8_t c;
+      read_byte(&c);
+      
+      // Only collect printable characters 
+      if (c >= 32 && c < 127) {
+        output_buffer += (char)c;
+      } else if (c == '\n' || c == '\r') {
+        // Check if this line contains anything that looks like version info
+        if (!output_buffer.empty()) {
+          ESP_LOGD(TAG, "Examining line: %s", output_buffer.c_str());
+          
+          // Look for version patterns like "v1.2.3" or just "1.2.3"
+          for (size_t i = 0; i < output_buffer.length(); i++) {
+            if ((output_buffer[i] == 'v' || output_buffer[i] == 'V') && 
+                i+1 < output_buffer.length() && isdigit(output_buffer[i+1])) {
+              // Found v followed by a digit, likely a version
+              std::string version = output_buffer.substr(i);
+              firmware_version_ = version;
+              found_version = true;
+              ESP_LOGI(TAG, "Found version string: %s", version.c_str());
+              break;
+            }
+            else if (i+2 < output_buffer.length() && 
+                    isdigit(output_buffer[i]) && 
+                    output_buffer[i+1] == '.' && 
+                    isdigit(output_buffer[i+2])) {
+              // Found a numeric version pattern
+              std::string version = "v" + output_buffer.substr(i, output_buffer.find_first_not_of("0123456789.", i) - i);
+              firmware_version_ = version;
+              found_version = true;
+              ESP_LOGI(TAG, "Found version number: %s", version.c_str());
+              break;
+            }
+          }
+        }
+        output_buffer.clear();
+      }
+      
+      if (found_version) break;
+    }
+    yield();
+  }
+  
+  if (found_version) {
+    if (firmware_version_text_sensor_ != nullptr) {
+      firmware_version_text_sensor_->publish_state(firmware_version_);
+      ESP_LOGI(TAG, "Published firmware version from normal output: %s", firmware_version_.c_str());
+    }
+    return;
+  }
+  
+  // If no version found in normal output, enter config mode and use the correct command
+  ESP_LOGI(TAG, "No version in normal output, entering config mode...");
   bool entered_config_mode = false;
   
   if (!config_mode_) {
     if (!enter_config_mode_()) {
       ESP_LOGW(TAG, "Failed to enter config mode for firmware version check");
-      if (firmware_version_text_sensor_ != nullptr) {
-        firmware_version_text_sensor_->publish_state("Unknown - Config Failed");
-      }
       return;
     }
     entered_config_mode = true;
   }
   
-  // Fetch firmware version using parameter ID approach instead of direct command
-  // Some devices might support this alternative method
-  ESP_LOGI(TAG, "Attempting to get firmware version via parameter query...");
-  
-  uint32_t version_value = 0;
-  bool version_success = false;
-  
-  // Try the parameter-based approach (parameter 0x0008 is often firmware version)
-  uint8_t version_param_data[2] = {0x08, 0x00};  // Parameter ID 0x0008
-  if (send_command_(CMD_GET_PARAMS, version_param_data, sizeof(version_param_data))) {
-    std::vector<uint8_t> param_response;
-    if (read_response_(param_response, 2000)) {
-      // Log raw response
-      char hex_buf[128] = {0};
-      for (size_t i = 0; i < param_response.size() && i < 20; i++) {
-        sprintf(hex_buf + (i*3), "%02X ", param_response[i]);
-      }
-      ESP_LOGI(TAG, "Version parameter response: %s", hex_buf);
-      
-      if (param_response.size() >= 6) {
-        version_value = param_response[2] | (param_response[3] << 8) | 
-                       (param_response[4] << 16) | (param_response[5] << 24);
-        ESP_LOGI(TAG, "Version parameter value: %u", version_value);
-        version_success = true;
-      }
-    }
-  }
-  
-  // If parameter approach failed, try direct command approach
-  if (!version_success) {
-    ESP_LOGI(TAG, "Parameter approach failed, trying direct command method...");
-    if (send_command_(CMD_GET_VERSION)) {
-      std::vector<uint8_t> response;
-      if (read_response_(response, 2000)) {
-        char hex_buf[128] = {0};
-        for (size_t i = 0; i < response.size() && i < 20; i++) {
-          sprintf(hex_buf + (i*3), "%02X ", response[i]);
-        }
-        ESP_LOGI(TAG, "Version command response: %s", hex_buf);
-        
-        // Try to extract version info
-        if (response.size() >= 3) {
-          version_value = response[0] | (response[1] << 8) | (response[2] << 16);
-          version_success = true;
-        }
-      } else {
-        ESP_LOGW(TAG, "No response to version command");
-      }
-    }
-  }
-  
-  // Construct version string based on results
-  char version[32];
-  if (version_success) {
-    // Format version based on the value
-    uint8_t major = (version_value >> 16) & 0xFF;
-    uint8_t minor = (version_value >> 8) & 0xFF;
-    uint8_t patch = version_value & 0xFF;
-    
-    if (major == 0 && minor == 0 && patch == 0) {
-      // If all zeros, try different interpretation
-      major = (version_value >> 24) & 0xFF;
-      minor = (version_value >> 16) & 0xFF;
-      patch = (version_value >> 8) & 0xFF;
-    }
-    
-    sprintf(version, "v%d.%d.%d", major, minor, patch);
-    firmware_version_ = version;
-    ESP_LOGI(TAG, "Firmware version: %s (raw: 0x%08X)", version, version_value);
+  // According to the protocol docs, command 0x0001 is the firmware version command
+  if (!send_command_(CMD_GET_VERSION)) {
+    ESP_LOGW(TAG, "Failed to send version command");
   } else {
-    // Extract firmware version from data output
-    ESP_LOGI(TAG, "Trying to extract version from normal data output...");
-    strcpy(version, "Unknown");
+    // Wait for response with a longer delay - may need to be adjusted per documentation
+    delay(300);  // Adjust based on protocol documentation timing requirements
     
-    // Flush and read some normal output data
-    flush();
-    delay(500);
-    
-    // Try to find any version info in the data output
-    uint32_t start = millis();
-    while ((millis() - start) < 2000) {
-      if (available() > 10) {
-        std::string data_line;
-        while (available()) {
-          uint8_t c;
-          read_byte(&c);
-          if (c == '\n') break;
-          if (c != '\r') data_line += (char)c;
+    std::vector<uint8_t> response;
+    if (read_response_(response, 1000)) {
+      if (response.size() > 0) {
+        char version[32];
+        
+        // Format according to protocol documentation - adjust this based on actual format
+        if (response.size() >= 3) {
+          sprintf(version, "v%d.%d.%d", response[0], response[1], response[2]);
+        } else if (response.size() == 2) {
+          sprintf(version, "v%d.%d", response[0], response[1]);
+        } else {
+          sprintf(version, "v%d", response[0]);
         }
         
-        ESP_LOGD(TAG, "Device output: %s", data_line.c_str());
+        firmware_version_ = version;
+        ESP_LOGI(TAG, "Got firmware version: %s", version);
         
-        // Look for anything that might indicate a version
-        if (data_line.find("v") != std::string::npos || 
-            data_line.find("V") != std::string::npos ||
-            data_line.find("version") != std::string::npos) {
-          strcpy(version, data_line.c_str());
-          break;
+        if (firmware_version_text_sensor_ != nullptr) {
+          firmware_version_text_sensor_->publish_state(version);
         }
       }
-      delay(100);
     }
   }
-  
-  // Safe exit from config mode even if we had issues
+
+  // Exit config mode if we entered it
   if (entered_config_mode) {
-    ESP_LOGI(TAG, "Safely exiting config mode...");
-    // Send exit command multiple times to increase chances of success
-    for (int i = 0; i < 3; i++) {
-      if (send_command_(CMD_DISABLE_CONFIG)) {
-        delay(200);
-        std::vector<uint8_t> exit_response;
-        if (read_response_(exit_response, 1000)) {
-          ESP_LOGI(TAG, "Received response to exit config mode command");
-          config_mode_ = false;
-          break;
-        }
-      }
-      delay(300);
-    }
-    
-    // Force exit state even if command didn't work properly
-    if (config_mode_) {
-      ESP_LOGW(TAG, "Forcing exit from config mode state");
-      config_mode_ = false;
-    }
+    ESP_LOGI(TAG, "Exiting config mode safely");
+    exit_config_mode_();
   }
   
-  // Always publish version even if we couldn't get it
-  if (firmware_version_text_sensor_ != nullptr) {
-    firmware_version_text_sensor_->publish_state(version);
-    ESP_LOGI(TAG, "Published firmware version: %s", version);
+  // If we still don't have a version, use the model name as fallback
+  if (firmware_version_.empty() || firmware_version_ == "Unknown") {
+    firmware_version_ = "HLK-LD2402";
+    if (firmware_version_text_sensor_ != nullptr) {
+      firmware_version_text_sensor_->publish_state(firmware_version_);
+    }
   }
 }
 
@@ -218,8 +201,8 @@ void HLKLD2402Component::loop() {
   static bool power_check_done = false;
   static uint32_t startup_time = millis();
   
-  // Firmware version check at 30 seconds after boot
-  if (!firmware_check_done && (millis() - startup_time) > 30000) {
+  // Firmware version check earlier at 20 seconds to avoid conflict with power check
+  if (!firmware_check_done && (millis() - startup_time) > 20000) {
     ESP_LOGI(TAG, "Performing firmware version check...");
     get_firmware_version_();
     firmware_check_done = true;
@@ -357,6 +340,49 @@ void HLKLD2402Component::loop() {
       } else {
         ESP_LOGW(TAG, "Line buffer overflow, clearing");
         line_buffer_.clear();
+      }
+    }
+    
+    // Additional processing in loop to passively detect version info
+    // from normal operation output, even after initial check
+    if (!firmware_version_.empty() && firmware_version_ != "Unknown" && 
+        firmware_version_.find("HLK-LD2402") == 0 && 
+        firmware_version_.find("v") == std::string::npos) {
+      
+      // We only have model info, still looking for version number
+      if (c == '\n' && !line_buffer_.empty()) {
+        if (line_buffer_.find("v") != std::string::npos || 
+            line_buffer_.find("V") != std::string::npos ||
+            line_buffer_.find("version") != std::string::npos ||
+            line_buffer_.find("Version") != std::string::npos) {
+          
+          ESP_LOGI(TAG, "Found potential version info: %s", line_buffer_.c_str());
+          // Extract version information
+          std::string version = "HLK-LD2402";
+          
+          // Try to find version number pattern
+          for (size_t i = 0; i < line_buffer_.length(); i++) {
+            if ((i+2 < line_buffer_.length() && 
+                isdigit(line_buffer_[i]) && 
+                line_buffer_[i+1] == '.' && 
+                isdigit(line_buffer_[i+2])) ||
+                (line_buffer_[i] == 'v' || line_buffer_[i] == 'V')) {
+              
+              size_t start_pos = line_buffer_[i] == 'v' || line_buffer_[i] == 'V' ? i+1 : i;
+              size_t end_pos = line_buffer_.find_first_not_of("0123456789.", start_pos);
+              if (end_pos == std::string::npos) end_pos = line_buffer_.length();
+              
+              version = "v" + line_buffer_.substr(start_pos, end_pos - start_pos);
+              firmware_version_ = version;
+              
+              if (firmware_version_text_sensor_ != nullptr) {
+                firmware_version_text_sensor_->publish_state(version);
+                ESP_LOGI(TAG, "Updated firmware version from passive detection: %s", version.c_str());
+              }
+              break;
+            }
+          }
+        }
       }
     }
   }
@@ -1029,20 +1055,30 @@ bool HLKLD2402Component::exit_config_mode_() {
     
   ESP_LOGD(TAG, "Exiting config mode...");
   
-  // Simpler exit - just try once and force exit regardless
+  // Send exit command
   if (send_command_(CMD_DISABLE_CONFIG)) {
-    // Wait a short time for response
-    delay(200);
+    // Brief wait for response 
+    delay(100);
     
+    // Read any response but don't wait too long
     std::vector<uint8_t> response;
-    if (read_response_(response, 500)) {
-      ESP_LOGI(TAG, "Received response to exit config mode command");
+    bool got_response = read_response_(response, 300);
+    if (got_response) {
+      ESP_LOGI(TAG, "Got response to exit command");
     }
   }
   
-  // Force exit state even if command didn't respond properly
+  // Always mark as exited regardless of response
   config_mode_ = false;
   ESP_LOGI(TAG, "Left config mode");
+  
+  // Clear any pending data to ensure clean state
+  flush();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+  }
+  
   return true;
 }
 
