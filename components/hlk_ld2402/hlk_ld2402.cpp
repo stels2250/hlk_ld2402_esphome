@@ -214,22 +214,22 @@ void HLKLD2402Component::loop() {
   static uint32_t byte_count = 0;
   static uint8_t last_bytes[16] = {0};
   static size_t last_byte_pos = 0;
-  static bool initial_checks_done = false;  // Rename from power_check_done to initial_checks_done
+  static bool firmware_check_done = false;
+  static bool power_check_done = false;
   static uint32_t startup_time = millis();
   
-  // One-time checks after 60 seconds of operation
-  if (!initial_checks_done && (millis() - startup_time) > 60000) {
-    ESP_LOGI(TAG, "Performing initial device checks...");
-    
-    // Check firmware version first, as we'll need to enter config mode anyway
-    ESP_LOGI(TAG, "Checking firmware version...");
+  // Firmware version check at 30 seconds after boot
+  if (!firmware_check_done && (millis() - startup_time) > 30000) {
+    ESP_LOGI(TAG, "Performing firmware version check...");
     get_firmware_version_();
-    
-    // After getting firmware version, check power interference
-    ESP_LOGI(TAG, "Checking power interference status...");
+    firmware_check_done = true;
+  }
+  
+  // Power interference check at 60 seconds after boot
+  if (firmware_check_done && !power_check_done && (millis() - startup_time) > 60000) {
+    ESP_LOGI(TAG, "Performing power interference check...");
     check_power_interference();
-    
-    initial_checks_done = true;
+    power_check_done = true;
   }
   
   // Add periodic debug message - reduce frequency
@@ -1029,36 +1029,21 @@ bool HLKLD2402Component::exit_config_mode_() {
     
   ESP_LOGD(TAG, "Exiting config mode...");
   
-  // Try multiple times to exit config mode
-  for (int attempt = 0; attempt < 3; attempt++) {
-    if (!send_command_(CMD_DISABLE_CONFIG)) {
-      ESP_LOGE(TAG, "Failed to send exit config mode command");
-      delay(300);
-      continue;
-    }
-    
-    delay(200);  // Wait for response
+  // Simpler exit - just try once and force exit regardless
+  if (send_command_(CMD_DISABLE_CONFIG)) {
+    // Wait a short time for response
+    delay(200);
     
     std::vector<uint8_t> response;
-    if (read_response_(response, 1000)) {
-      // More permissive check for success
-      if (response.size() >= 2) {
-        // Accept either 00 00 or any response
-        config_mode_ = false;
-        ESP_LOGI(TAG, "Successfully exited config mode");
-        return true;
-      }
-    } else {
-      ESP_LOGW(TAG, "No response to exit config mode command, attempt %d", attempt + 1);
+    if (read_response_(response, 500)) {
+      ESP_LOGI(TAG, "Received response to exit config mode command");
     }
-    
-    delay(200);  // Add delay between attempts
   }
   
-  // If we had issues, force exit config mode
-  ESP_LOGW(TAG, "Forcing exit from config mode state despite issues");
+  // Force exit state even if command didn't respond properly
   config_mode_ = false;
-  return false;
+  ESP_LOGI(TAG, "Left config mode");
+  return true;
 }
 
 bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
