@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, text_sensor
 from esphome.const import CONF_ID, CONF_TIMEOUT, ENTITY_CATEGORY_DIAGNOSTIC
+from esphome.automation import register_service  # Add this import statement
 
 # Make sure text_sensor is listed as a direct dependency
 DEPENDENCIES = ["uart", "text_sensor"]
