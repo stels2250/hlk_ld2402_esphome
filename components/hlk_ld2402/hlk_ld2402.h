@@ -13,6 +13,10 @@ namespace hlk_ld2402 {
 static const uint8_t FRAME_HEADER[] = {0xFD, 0xFC, 0xFB, 0xFA};
 static const uint8_t FRAME_FOOTER[] = {0x04, 0x03, 0x02, 0x01};
 
+// Add new frame format constants
+static const uint8_t DATA_FRAME_HEADER[] = {0xF4, 0xF3, 0xF2, 0xF1}; // Data frame header
+static const uint8_t DATA_FRAME_TYPE_DISTANCE = 0x83; // Distance data frame type
+
 // Commands
 static const uint16_t CMD_GET_VERSION = 0x0000;  // Changed from 0x0001 to 0x0000
 static const uint16_t CMD_ENABLE_CONFIG = 0x00FF;
@@ -128,6 +132,9 @@ protected:
   // Convert dB value to raw threshold
   uint32_t db_to_threshold_(float db_value);
   float threshold_to_db_(uint32_t threshold);
+
+  bool parse_data_frame_(const std::vector<uint8_t> &frame_data);
+  bool process_distance_frame_(const std::vector<uint8_t> &frame_data);
 
 private:
   // According to manual, response timeout should be 1s

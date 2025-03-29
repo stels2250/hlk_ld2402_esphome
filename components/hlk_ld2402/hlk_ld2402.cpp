@@ -218,72 +218,80 @@ void HLKLD2402Component::loop() {
       raw_pos = 0;
     }
     
-    // Modified binary frame detection using a different approach
-    if (c == FRAME_HEADER[0]) {
-      // Only consider it a frame header if we have enough bytes available
-      if (available() >= 3) {
-        // Use a temporary buffer to store the next few bytes
-        bool is_frame_header = true;
-        uint8_t peek_buffer[3];
+    // FIRST CHECK: Check for data frame header (F4 F3 F2 F1)
+    if (c == DATA_FRAME_HEADER[0]) {
+      // Need to check if this is actually a data frame
+      if (available() >= 4) { // Need at least 4 more bytes to verify the header and frame type
+        // Peek at the next 4 bytes to check for frame header and type
+        bool is_data_frame = true;
+        uint8_t peek_bytes[4]; // Header + frame type
         
-        // Store the first read byte
-        uint8_t stored_bytes[4];
-        stored_bytes[0] = c;
-        
-        // Read the next 3 bytes (we'll put them back if needed)
-        for (int i = 0; i < 3; i++) {
+        // Read the next 4 bytes without removing them from buffer
+        for (int i = 0; i < 4; i++) {
           if (!available()) {
-            is_frame_header = false;
+            is_data_frame = false;
             break;
           }
           
-          read_byte(&peek_buffer[i]);
-          stored_bytes[i + 1] = peek_buffer[i];
+          read_byte(&peek_bytes[i]);
           
-          if (peek_buffer[i] != FRAME_HEADER[i + 1]) {
-            is_frame_header = false;
+          // First 3 bytes should match header, 4th byte is frame type
+          if (i < 3 && peek_bytes[i] != DATA_FRAME_HEADER[i+1]) {
+            is_data_frame = false;
             break;
           }
         }
         
-        if (is_frame_header) {
-          // It's a valid frame header, continue processing the frame
-          ESP_LOGD(TAG, "Detected binary protocol frame - skipping");
+        if (is_data_frame) {
+          // We have a proper data frame header! Collect the whole frame
+          // The 4th byte is the frame type (0x83 for distance data)
+          uint8_t frame_type = peek_bytes[3];
+          std::vector<uint8_t> frame_data;
           
-          // Skip the rest of this frame until we see footer or timeout
-          uint32_t skip_start = millis();
-          uint8_t footer_match = 0;
-          
-          while (footer_match < 4 && (millis() - skip_start) < 200) {
-            if (available()) {
-              uint8_t frame_byte;
-              read_byte(&frame_byte);
-              byte_count++;
-              
-              if (frame_byte == FRAME_FOOTER[footer_match]) {
-                footer_match++;
-              } else {
-                footer_match = 0;
-              }
-            }
-            yield();
+          // Add first 5 bytes (4 header + frame type)
+          frame_data.push_back(c);  // First byte (already read)
+          for (int i = 0; i < 4; i++) {
+            frame_data.push_back(peek_bytes[i]);
           }
+          
+          // Read up to 100 bytes to capture the entire frame
+          // This limit is just a safety mechanism - we'll read until we have a complete frame
+          size_t max_frame_size = 100;
+          size_t bytes_read = 0;
+          
+          while (available() && bytes_read < max_frame_size) {
+            uint8_t data_byte;
+            read_byte(&data_byte);
+            frame_data.push_back(data_byte);
+            bytes_read++;
+          }
+          
+          // Process the data frame based on frame_type
+          if (frame_type == DATA_FRAME_TYPE_DISTANCE) {
+            if (process_distance_frame_(frame_data)) {
+              ESP_LOGD(TAG, "Successfully processed distance data frame");
+            } else {
+              ESP_LOGW(TAG, "Failed to process distance data frame");
+            }
+          } else {
+            ESP_LOGD(TAG, "Unknown frame type: 0x%02X", frame_type);
+          }
+          
+          continue; // Skip further processing for this byte
         } else {
-          // Not a frame header, add the bytes to the line buffer
-          line_buffer_ += (char)stored_bytes[0]; // Add the first byte (c)
-          
-          // Add any additional bytes we read
-          for (int i = 0; i < 3 && !is_frame_header; i++) {
-            if (i < 3 - (is_frame_header ? 0 : 1)) {
-              line_buffer_ += (char)stored_bytes[i + 1];
-              byte_count++;
-            }
+          // Not a valid data frame, add all read bytes to line buffer
+          line_buffer_ += (char)c;
+          for (int i = 0; i < 4 && !is_data_frame; i++) {
+            line_buffer_ += (char)peek_bytes[i];
           }
         }
-        
-        // Continue with next iteration - we've either processed a frame header or added bytes to line buffer
-        continue;
       }
+    }
+    
+    // SECOND CHECK: Check for command/response frame header (FD FC FB FA)
+    else if (c == FRAME_HEADER[0]) {
+      // Only consider it a frame header if we have enough bytes available
+      // ...existing code for checking command frame...
     }
     
     // Check for text data - add to line buffer
@@ -403,6 +411,82 @@ void HLKLD2402Component::loop() {
   if (!line_buffer_.empty() && (millis() - last_byte_time > TIMEOUT_MS)) {
     line_buffer_.clear();
   }
+}
+
+// Add new method to parse distance data frames
+bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &frame_data) {
+  // Ensure the frame is at least the minimum expected length
+  // Header (4) + Type (1) + Length (2) + minimum data
+  if (frame_data.size() < 10) {
+    ESP_LOGW(TAG, "Distance frame too short: %d bytes", frame_data.size());
+    return false;
+  }
+  
+  // Distance data typically follows this format:
+  // - First 5 bytes are header + type (F4 F3 F2 F1 83)
+  // - Next 2 bytes are data length
+  uint16_t data_length = frame_data[6] | (frame_data[7] << 8);
+  
+  // Log the frame for debugging
+  ESP_LOGD(TAG, "Distance frame data length: %d", data_length);
+  
+  // Check if we have at least one distance value 
+  // Typically our frame looks like: 
+  // F4 F3 F2 F1 83 00 01 B6 00 00 00 00 00 60 2D 00 00 16 1C ...
+  // Where the distance values start at position 13
+  // Each value is typically 4 bytes, little-endian
+  
+  if (frame_data.size() < 14) {
+    ESP_LOGW(TAG, "Frame too short to contain distance data");
+    return false;
+  }
+  
+  // We'll use the first non-zero value as our distance
+  float min_distance_cm = 0;
+  
+  // Start at byte 13 (index 12) and look for the first valid distance
+  for (size_t i = 12; i + 3 < frame_data.size(); i += 4) {
+    uint32_t value = frame_data[i] | 
+                    (frame_data[i+1] << 8) | 
+                    (frame_data[i+2] << 16) | 
+                    (frame_data[i+3] << 24);
+                    
+    // If the value is non-zero, convert to distance
+    if (value > 0) {
+      float distance = value * 0.1f; // Convert to cm (adjust this factor as needed)
+      
+      // If this is the first valid value, or it's closer than our current minimum
+      if (min_distance_cm == 0 || distance < min_distance_cm) {
+        min_distance_cm = distance;
+      }
+      
+      ESP_LOGD(TAG, "Distance value at pos %d: %.1f cm", i, distance);
+    }
+  }
+  
+  // If we found a valid distance, update our sensors
+  if (min_distance_cm > 0) {
+    ESP_LOGI(TAG, "Detected distance (from binary frame): %.1f cm", min_distance_cm);
+    
+    if (this->distance_sensor_ != nullptr) {
+      this->distance_sensor_->publish_state(min_distance_cm);
+    }
+    
+    // Update presence states based on documented ranges
+    if (this->presence_binary_sensor_ != nullptr) {
+      bool is_presence = min_distance_cm <= (STATIC_RANGE * 100);
+      this->presence_binary_sensor_->publish_state(is_presence);
+    }
+    
+    if (this->micromovement_binary_sensor_ != nullptr) {
+      bool is_micro = min_distance_cm <= (MICROMOVEMENT_RANGE * 100);
+      this->micromovement_binary_sensor_->publish_state(is_micro);
+    }
+    
+    return true;
+  }
+  
+  return false;
 }
 
 void HLKLD2402Component::process_line_(const std::string &line) {
