@@ -199,6 +199,52 @@ button:
       - logger.log: "WARNING: Performing factory reset on radar module"
       - lambda: id(radar_sensor).factory_reset();
 
+  - platform: template
+    name: "Apply Calibration Coefficients"
+    icon: "mdi:tune-vertical-variant"
+    on_press:
+      - lambda: |-
+          id(radar_sensor).calibrate_with_coefficients(
+            id(trigger_coefficient).state,
+            id(hold_coefficient).state,
+            id(micromotion_coefficient).state
+          );
+
+# Add sliders for calibration coefficients
+number:
+  - platform: template
+    name: "Trigger Coefficient"
+    id: trigger_coefficient
+    optimistic: true
+    min_value: 1.0
+    max_value: 20.0
+    step: 0.1
+    initial_value: 3.5
+    icon: "mdi:tune-vertical"
+    unit_of_measurement: "x"
+    
+  - platform: template
+    name: "Hold Coefficient"
+    id: hold_coefficient
+    optimistic: true
+    min_value: 1.0
+    max_value: 20.0
+    step: 0.1
+    initial_value: 3.0
+    icon: "mdi:tune-vertical"
+    unit_of_measurement: "x"
+    
+  - platform: template
+    name: "Micromotion Coefficient"
+    id: micromotion_coefficient
+    optimistic: true
+    min_value: 1.0
+    max_value: 20.0
+    step: 0.1
+    initial_value: 4.0
+    icon: "mdi:tune-vertical"
+    unit_of_measurement: "x"
+
 # Add status LED if available
 status_led:
   pin: GPIO2
