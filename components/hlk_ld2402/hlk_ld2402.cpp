@@ -218,20 +218,27 @@ void HLKLD2402Component::loop() {
       raw_pos = 0;
     }
     
-    // Modified binary frame detection to be more strict
+    // Modified binary frame detection using a different approach
     if (c == FRAME_HEADER[0]) {
       // Only consider it a frame header if we have enough bytes available
       if (available() >= 3) {
-        // Peek at the next 3 bytes to check if they match the header exactly
+        // Use a temporary buffer to store the next few bytes
         bool is_frame_header = true;
         uint8_t peek_buffer[3];
         
-        // Read the next 3 bytes without removing them from the buffer
+        // Store the first read byte
+        uint8_t stored_bytes[4];
+        stored_bytes[0] = c;
+        
+        // Read the next 3 bytes (we'll put them back if needed)
         for (int i = 0; i < 3; i++) {
-          if (!peek_byte(&peek_buffer[i], i)) {
+          if (!available()) {
             is_frame_header = false;
             break;
           }
+          
+          read_byte(&peek_buffer[i]);
+          stored_bytes[i + 1] = peek_buffer[i];
           
           if (peek_buffer[i] != FRAME_HEADER[i + 1]) {
             is_frame_header = false;
@@ -240,13 +247,7 @@ void HLKLD2402Component::loop() {
         }
         
         if (is_frame_header) {
-          // It's a valid frame header, consume the 3 peeked bytes
-          for (int i = 0; i < 3; i++) {
-            uint8_t discard;
-            read_byte(&discard);
-            byte_count++;
-          }
-          
+          // It's a valid frame header, continue processing the frame
           ESP_LOGD(TAG, "Detected binary protocol frame - skipping");
           
           // Skip the rest of this frame until we see footer or timeout
@@ -267,10 +268,21 @@ void HLKLD2402Component::loop() {
             }
             yield();
           }
+        } else {
+          // Not a frame header, add the bytes to the line buffer
+          line_buffer_ += (char)stored_bytes[0]; // Add the first byte (c)
           
-          // Frame skipped, continue with next data
-          continue;
+          // Add any additional bytes we read
+          for (int i = 0; i < 3 && !is_frame_header; i++) {
+            if (i < 3 - (is_frame_header ? 0 : 1)) {
+              line_buffer_ += (char)stored_bytes[i + 1];
+              byte_count++;
+            }
+          }
         }
+        
+        // Continue with next iteration - we've either processed a frame header or added bytes to line buffer
+        continue;
       }
     }
     
