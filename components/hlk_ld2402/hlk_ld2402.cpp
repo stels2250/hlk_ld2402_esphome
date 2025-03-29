@@ -423,22 +423,53 @@ void HLKLD2402Component::loop() {
       
       if (send_command_(CMD_GET_CALIBRATION_STATUS)) {
         std::vector<uint8_t> response;
-        if (read_response_(response) && response.size() >= 4) {
-          // Per protocol section 5.2.10, response format:
-          // 2 bytes ACK status + 2 bytes percentage
-          uint16_t progress = response[2] | (response[3] << 8);
-          calibration_progress_ = progress;
-          
-          ESP_LOGI(TAG, "Calibration progress: %u%%", progress);
-          this->calibration_progress_sensor_->publish_state(progress);
-          
-          // Check if calibration is complete
-          if (progress >= 100) {
-            ESP_LOGI(TAG, "Calibration complete");
-            calibration_in_progress_ = false;
-            exit_config_mode_();
+        if (read_response_(response)) {
+          // Log the complete response for debugging
+          char hex_buf[64] = {0};
+          for (size_t i = 0; i < response.size() && i < 16; i++) {
+            sprintf(hex_buf + (i*3), "%02X ", response[i]);
           }
+          ESP_LOGD(TAG, "Calibration status response: %s", hex_buf);
+          
+          // According to protocol section 5.2.10:
+          // Response format includes 2 bytes ACK status (00 00) followed by 2 bytes percentage
+          if (response.size() >= 4) {
+            // First validate the ACK status
+            if (response[0] == 0x00 && response[1] == 0x00) {
+              // Read percentage value - little endian (LSB first)
+              uint16_t progress = response[2] | (response[3] << 8);
+              
+              // Diagnostic log for progress value
+              ESP_LOGD(TAG, "Raw progress value: 0x%04X (%u)", progress, progress);
+              
+              // Sanity check: ensure progress is 0-100
+              if (progress > 100) {
+                ESP_LOGW(TAG, "Invalid calibration progress value: %u, capping to 100", progress);
+                progress = 100;
+              }
+              
+              calibration_progress_ = progress;
+              ESP_LOGI(TAG, "Calibration progress: %u%%", progress);
+              this->calibration_progress_sensor_->publish_state(progress);
+              
+              // Check if calibration is complete
+              if (progress >= 100) {
+                ESP_LOGI(TAG, "Calibration complete");
+                calibration_in_progress_ = false;
+                exit_config_mode_();
+              }
+            } else {
+              ESP_LOGW(TAG, "Invalid ACK status in calibration response: %02X %02X", 
+                      response[0], response[1]);
+            }
+          } else {
+            ESP_LOGW(TAG, "Calibration status response too short: %d bytes", response.size());
+          }
+        } else {
+          ESP_LOGW(TAG, "No response to calibration status query");
         }
+      } else {
+        ESP_LOGW(TAG, "Failed to send calibration status query");
       }
     }
   }
@@ -875,7 +906,7 @@ bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
   return false;
 }
 
-// Update calibration to match new command format
+// Update calibration to match new command format and improve progress tracking
 void HLKLD2402Component::calibrate() {
   ESP_LOGI(TAG, "Starting calibration...");
   
@@ -898,11 +929,23 @@ void HLKLD2402Component::calibrate() {
     // Set calibration flags and initialize progress
     calibration_in_progress_ = true;
     calibration_progress_ = 0;
-    last_calibration_check_ = millis();
+    last_calibration_check_ = millis() - 4000; // Check status almost immediately
     
     // Publish initial progress
     if (this->calibration_progress_sensor_ != nullptr) {
       this->calibration_progress_sensor_->publish_state(0);
+    }
+    
+    // Check status once right away to verify it started
+    std::vector<uint8_t> response;
+    if (send_command_(CMD_GET_CALIBRATION_STATUS) && read_response_(response)) {
+      if (response.size() >= 4) {
+        ESP_LOGI(TAG, "Initial calibration query response:");
+        // Dump complete response for debugging
+        for (size_t i = 0; i < response.size(); i++) {
+          ESP_LOGI(TAG, "  Byte[%d] = 0x%02X", i, response[i]);
+        }
+      }
     }
   } else {
     ESP_LOGE(TAG, "Failed to start calibration");
@@ -910,7 +953,6 @@ void HLKLD2402Component::calibrate() {
   }
 }
 
-// Update save_config method to use correct command per documentation section 5.3
 void HLKLD2402Component::save_config() {
   ESP_LOGI(TAG, "Saving configuration...");
   
