@@ -1495,6 +1495,36 @@ bool HLKLD2402Component::enter_config_mode_() {
             
             return true;
           } else {
+            ESP_LOGW(TAG, "Invalid config mode response format - expected status 00 00");
+            
+            // Trace each byte to help diagnose the issue
+            ESP_LOGW(TAG, "Response details: %d bytes", response.size());
+            for (size_t i = 0; i < response.size() && i < 10; i++) {
+                ESP_LOGW(TAG, "  Byte[%d] = 0x%02X", i, response[i]);
+            }
+          }
+        }
+      }
+      delay(50);  // Small delay between checks
+    }
+    
+    ESP_LOGW(TAG, "No valid response to config mode command, retrying");
+    delay(500);  // Wait before retrying
+  }
+  
+  ESP_LOGE(TAG, "Failed to enter config mode after 3 attempts");
+  return false;
+}
+
+bool HLKLD2402Component::exit_config_mode_() {
+  if (!config_mode_)
+    return true;
+    
+  ESP_LOGD(TAG, "Exiting config mode...");
+  
+  // Send exit command
+  if (send_command_(CMD_DISABLE_CONFIG)) {
+    // Brief wait for response 
     delay(100);
     
     // Read any response but don't wait too long
