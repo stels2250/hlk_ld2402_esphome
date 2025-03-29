@@ -120,6 +120,7 @@ protected:
   bool set_parameter_(uint16_t param_id, uint32_t value);
   bool get_parameter_(uint16_t param_id, uint32_t &value);
   bool set_work_mode_(uint32_t mode);
+  bool set_work_mode_with_timeout_(uint32_t mode, uint32_t timeout_ms);  // New method with timeout
   void process_line_(const std::string &line);
   void dump_hex_(const uint8_t *data, size_t len, const char* prefix);
   bool write_frame_(const std::vector<uint8_t> &frame);  // New method

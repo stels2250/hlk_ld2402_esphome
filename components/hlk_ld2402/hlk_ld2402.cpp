@@ -851,7 +851,11 @@ bool HLKLD2402Component::get_parameter_(uint16_t param_id, uint32_t &value) {
 }
 
 bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
-  ESP_LOGI(TAG, "Setting work mode to %u (0x%X)", mode, mode);
+  return set_work_mode_with_timeout_(mode, 1000);  // Use default 1000ms timeout
+}
+
+bool HLKLD2402Component::set_work_mode_with_timeout_(uint32_t mode, uint32_t timeout_ms) {
+  ESP_LOGI(TAG, "Setting work mode to %u (0x%X) with %ums timeout", mode, mode, timeout_ms);
   
   // Use production mode from manual instead of MODE_NORMAL
   if (mode == MODE_NORMAL) {
@@ -867,25 +871,30 @@ bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
   mode_data[4] = (mode >> 16) & 0xFF;
   mode_data[5] = (mode >> 24) & 0xFF;
   
+  // Log the payload data for debugging
+  ESP_LOGD(TAG, "Mode payload: %02X %02X %02X %02X %02X %02X", 
+           mode_data[0], mode_data[1], mode_data[2], 
+           mode_data[3], mode_data[4], mode_data[5]);
+  
   if (!send_command_(CMD_SET_MODE, mode_data, sizeof(mode_data))) {
+    ESP_LOGE(TAG, "Failed to send mode command");
     return false;
   }
 
+  // Use the extended timeout for response
   std::vector<uint8_t> response;
-  if (!read_response_(response)) {
+  if (!read_response_(response, timeout_ms)) {
+    ESP_LOGE(TAG, "No response to mode command (timeout: %ums)", timeout_ms);
     return false;
   }
 
-  // After setting mode, try to read any data to clear buffers
-  flush();
-  delay(100);
-  ESP_LOGI(TAG, "After mode change, available bytes: %d", available());
-  while (available()) {
-    uint8_t c;
-    read_byte(&c);
-    ESP_LOGV(TAG, "Received byte after mode change: 0x%02X", c);
+  // Log the response in detail
+  char hex_buf[64] = {0};
+  for (size_t i = 0; i < response.size() && i < 16; i++) {
+    sprintf(hex_buf + (i*3), "%02X ", response[i]);
   }
-
+  ESP_LOGI(TAG, "Mode response: %s", hex_buf);
+  
   if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
     ESP_LOGI(TAG, "Work mode set successfully");
     
@@ -899,10 +908,18 @@ bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
     }
     
     publish_operating_mode_();
+    
+    // Clear any pending data
+    flush();
+    while (available()) {
+      uint8_t c;
+      read_byte(&c);
+    }
+    
     return true;
   }
   
-  ESP_LOGE(TAG, "Failed to set work mode");
+  ESP_LOGE(TAG, "Invalid response to set work mode");
   return false;
 }
 
@@ -1522,6 +1539,27 @@ bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
   
   // For other responses, be permissive and assume success
   return true;
+}
+
+// Modify the set_engineering_mode method to enter config mode first
+void HLKLD2402Component::set_engineering_mode() {
+  ESP_LOGI(TAG, "Switching to engineering mode...");
+  
+  // First enter config mode - most commands require this
+  if (!enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode for engineering mode");
+    return;
+  }
+  
+  // Try to set engineering mode with increased timeout
+  if (set_work_mode_with_timeout_(MODE_ENGINEERING, 2000)) {
+    ESP_LOGI(TAG, "Successfully set engineering mode");
+    // Don't exit config mode - engineering mode likely needs to stay in config mode
+  } else {
+    ESP_LOGE(TAG, "Failed to set engineering mode");
+    // Exit config mode since we failed
+    exit_config_mode_();
+  }
 }
 
 }  // namespace hlk_ld2402
