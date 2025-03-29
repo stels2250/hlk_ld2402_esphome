@@ -247,8 +247,14 @@ void HLKLD2402Component::loop() {
         
         if (is_data_frame) {
           // We have a proper data frame header! Collect the whole frame
-          // The 4th byte is the frame type (0x83 for distance data)
+          // The 4th byte is the frame type (0x83 for distance data, 0x84 for engineering data)
           uint8_t frame_type = peek_bytes[3];
+          
+          // Add more verbose logging for engineering mode
+          if (operating_mode_ == "Engineering") {
+            ESP_LOGI(TAG, "In engineering mode, received frame type: 0x%02X", frame_type);
+          }
+          
           std::vector<uint8_t> frame_data;
           
           // Add first 5 bytes (4 header + frame type)
@@ -637,12 +643,14 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
 bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &frame_data) {
   // Early exit if engineering data processing is not enabled
   if (!engineering_data_enabled_ || energy_gate_sensors_.empty()) {
+    ESP_LOGD(TAG, "Engineering data processing disabled or no sensors configured");
     return false;
   }
   
   // Make sure we're in engineering mode
   if (operating_mode_ != "Engineering") {
-    ESP_LOGV(TAG, "Received engineering data while not in engineering mode");
+    ESP_LOGW(TAG, "Received engineering data frame but not in engineering mode! Current mode: %s", 
+            operating_mode_.c_str());
     return false;
   }
 
@@ -653,29 +661,47 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
     return false;
   }
   
-  // Log the frame for debugging
+  // Always log engineering frames at INFO level for debugging
   char hex_buf[128] = {0};
   for (size_t i = 0; i < std::min(frame_data.size(), size_t(40)); i++) {
     sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
   }
-  ESP_LOGD(TAG, "Engineering frame: %s", hex_buf);
+  ESP_LOGI(TAG, "Engineering frame received: %s", hex_buf);
   
   // Parse the engineering data format
-  // The format is: F4 F3 F2 F1 84 [Length 2B] [Gate Count 1B] [Energy Data]
-  // This is based on our best understanding - adjust if actual format differs
+  // As per manual section 5.6.2:
+  // Format: F4 F3 F2 F1 84 [Length 2B] [DetectionStatus 1B] [Distance 2B] [GateData 128B] F8 F7 F6 F5
   
-  uint8_t gate_count = frame_data.size() >= 8 ? frame_data[7] : 0;
-  if (gate_count == 0 || gate_count > 32) {
-    ESP_LOGW(TAG, "Invalid gate count: %d", gate_count);
+  // Verify frame type is engineering data (0x84)
+  if (frame_data.size() >= 5 && frame_data[4] != DATA_FRAME_TYPE_ENGINEERING) {
+    ESP_LOGW(TAG, "Not an engineering data frame: 0x%02X", frame_data[4]);
     return false;
   }
-  
-  ESP_LOGD(TAG, "Processing engineering data for %d gates", gate_count);
-  
+
+  // Extract detection status if available (byte 7 after header)
+  uint8_t detection_status = 0;
+  if (frame_data.size() >= 8) {
+    detection_status = frame_data[7];
+    const char* status_text = "unknown";
+    switch(detection_status) {
+      case 0: status_text = "no person"; break;
+      case 1: status_text = "person"; break;
+      case 2: status_text = "stationary person"; break;
+    }
+    ESP_LOGD(TAG, "Engineering frame detection status: %s (%d)", status_text, detection_status);
+  }
+
+  // Engineering data includes motion energy and micromotion energy for each gate
+  // Motion energy starts at byte 10 (each value is 4 bytes)
+  // Micromotion energy starts at byte 10 + (32*4) = byte 138
+
   // Process each gate's energy value
-  // Assuming energy values start at byte 8 and each is 4 bytes
-  for (uint8_t i = 0; i < gate_count; i++) {
-    size_t offset = 8 + (i * 4);
+  // We're focusing only on motion energy for now, could add micromotion later
+  const size_t motion_energy_start = 10;
+  const size_t motion_gate_count = DEFAULT_GATES; // Using 14 gates as determined earlier
+  
+  for (uint8_t i = 0; i < motion_gate_count; i++) {
+    size_t offset = motion_energy_start + (i * 4);
     
     // Make sure we have enough data for this gate
     if (offset + 3 >= frame_data.size()) {
@@ -684,15 +710,30 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
     }
     
     // Extract 32-bit energy value (little-endian)
-    uint32_t energy_value = frame_data[offset] | 
-                          (frame_data[offset+1] << 8) | 
-                          (frame_data[offset+2] << 16) | 
-                          (frame_data[offset+3] << 24);
+    uint32_t raw_energy = frame_data[offset] | 
+                        (frame_data[offset+1] << 8) | 
+                        (frame_data[offset+2] << 16) | 
+                        (frame_data[offset+3] << 24);
+    
+    // Convert raw energy to dB as per manual: dB = 10 * log10(raw_value)
+    float db_energy = 0;
+    if (raw_energy > 0) { // Avoid log10(0)
+      db_energy = 10.0f * log10f(raw_energy);
+    }
+    
+    // Calculate approximate distance for this gate
+    float gate_start_distance = i * DISTANCE_GATE_SIZE;
+    float gate_end_distance = gate_start_distance + DISTANCE_GATE_SIZE;
     
     // Update sensor if configured for this gate
     if (i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
-      energy_gate_sensors_[i]->publish_state(energy_value);
-      ESP_LOGV(TAG, "Gate %d energy: %u", i, energy_value);
+      // Publish either raw value or dB value based on preference
+      // For now using dB value which is more intuitive
+      energy_gate_sensors_[i]->publish_state(db_energy);
+      
+      // Log with more context at DEBUG level
+      ESP_LOGD(TAG, "Gate %d (%.1f-%.1f m) energy: %.1f dB (raw: %u)", 
+              i, gate_start_distance, gate_end_distance, db_energy, raw_energy);
     }
   }
   
@@ -1074,13 +1115,80 @@ void HLKLD2402Component::set_engineering_mode() {
     return;
   }
   
-  // Try to set engineering mode with increased timeout
-  if (set_work_mode_with_timeout_(MODE_ENGINEERING, 2000)) {
-    ESP_LOGI(TAG, "Successfully set engineering mode");
-    // Don't exit config mode - engineering mode likely needs to stay in config mode
+  // Based on the documentation, make a clean set of commands:
+  // 1. Clear any pending data
+  flush();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+  }
+
+  // 2. Set engineering mode with command 0x0012, parameter 0x00000004
+  ESP_LOGI(TAG, "Sending engineering mode command (0x0012)...");
+  
+  // Prepare the command data: 0x0000 followed by mode 0x00000004
+  uint8_t mode_data[6];
+  mode_data[0] = 0x00;  // First two bytes are 0x0000
+  mode_data[1] = 0x00;
+  mode_data[2] = 0x04;  // Engineering mode (0x00000004), little-endian
+  mode_data[3] = 0x00;
+  mode_data[4] = 0x00;
+  mode_data[5] = 0x00;
+  
+  if (!send_command_(CMD_SET_MODE, mode_data, sizeof(mode_data))) {
+    ESP_LOGE(TAG, "Failed to send engineering mode command");
+    exit_config_mode_();
+    return;
+  }
+  
+  // 3. Wait for response with increased timeout
+  std::vector<uint8_t> response;
+  if (!read_response_(response, 2000)) {
+    ESP_LOGE(TAG, "No response to engineering mode command");
+    exit_config_mode_();
+    return;
+  }
+  
+  // 4. Validate the response
+  char hex_buf[64] = {0};
+  for (size_t i = 0; i < response.size() && i < 16; i++) {
+    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+  }
+  ESP_LOGI(TAG, "Engineering mode response: %s", hex_buf);
+  
+  // Check if the response indicates success
+  bool success = false;
+  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+    success = true;
+    ESP_LOGI(TAG, "Engineering mode set successfully (standard ACK)");
+  } else if (response.size() >= 3 && response[0] == 0x04 && response[2] == 0x12) {
+    // Special case for engineering mode response as seen in documentation
+    success = true;
+    ESP_LOGI(TAG, "Engineering mode set successfully (device-specific response format)");
+  }
+  
+  if (success) {
+    operating_mode_ = "Engineering";
+    publish_operating_mode_();
+    
+    // 5. Important: DO NOT exit config mode - documentation indicates we must
+    // remain in config mode for engineering data to be sent
+    ESP_LOGI(TAG, "Entering engineering data monitoring mode. Remaining in config mode.");
+    config_mode_ = true;
+    
+    // 6. Add a delay to give the device time to start sending engineering data
+    delay(500);
+    
+    // 7. Clear any pending data again before receiving engineering frames
+    flush();
+    while (available()) {
+      uint8_t c;
+      read_byte(&c);
+    }
+    
+    ESP_LOGI(TAG, "Engineering mode activated. Waiting for data frames...");
   } else {
-    ESP_LOGE(TAG, "Failed to set engineering mode");
-    // Exit config mode since we failed
+    ESP_LOGE(TAG, "Engineering mode command failed: Unexpected response");
     exit_config_mode_();
   }
 }
