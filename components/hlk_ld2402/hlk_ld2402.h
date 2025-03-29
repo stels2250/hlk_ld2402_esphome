@@ -100,10 +100,8 @@ public:
   void check_power_interference();
   void factory_reset();  // Add new factory reset method
   
-  // Add a new public method to set the work mode
-  void set_engineering_mode() {
-    set_work_mode_(MODE_ENGINEERING);
-  }
+  // Change this to just a declaration, not an implementation
+  void set_engineering_mode();
   
   void set_normal_mode() {
     set_work_mode_(MODE_NORMAL);
