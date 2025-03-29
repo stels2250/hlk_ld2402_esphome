@@ -793,11 +793,5 @@ bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
   return true;
 }
 
-// Fix all the places where we used read_response_ with a custom timeout
-// by adding an implementation overload that uses the default timeout
-bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
-  return read_response_(response, 1000);  // Call the main implementation with default timeout
-}
-
 }  // namespace hlk_ld2402
 }  // namespace esphome
