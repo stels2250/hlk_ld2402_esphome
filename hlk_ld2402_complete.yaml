@@ -85,6 +85,15 @@ button:
       - logger.log: "WARNING: Performing factory reset on radar module"
       - lambda: id(radar_sensor).factory_reset();
 
+# Text sensors
+text_sensor:
+  - platform: hlk_ld2402
+    id: radar_firmware_version
+    name: "Radar Firmware Version"
+    firmware_version: true
+    hlk_ld2402_id: radar_sensor
+    entity_category: diagnostic
+
 # Add status LED if available
 status_led:
   pin: GPIO2
