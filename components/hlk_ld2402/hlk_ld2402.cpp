@@ -875,8 +875,7 @@ void HLKLD2402Component::check_power_interference() {
   send_command_(CMD_GET_PARAMS, max_dist_data, sizeof(max_dist_data));
   delay(1000);
   
-  // Try alternative approach - query power test mode status using different command
-  // According to some documentation, power test mode is command 0x05 (not get params with ID 0x05)
+  // According to the documentation section 5.2.5, the power interference parameter ID is 0x0005
   ESP_LOGI(TAG, "Trying direct power test mode status query...");
   
   // Clear buffers again
@@ -886,9 +885,8 @@ void HLKLD2402Component::check_power_interference() {
     read_byte(&c);
   }
   
-  // Send a direct query for power interference (experiment with command ID)
-  // Try command 0x0005 directly instead of parameter
-  if (!send_command_(0x0005)) {  // Direct power test mode check
+  // Send command 0x0005 per documentation
+  if (!send_command_(0x0005)) {
     ESP_LOGE(TAG, "Failed to send power test query");
     
     // Update sensor to show ERROR
@@ -899,18 +897,15 @@ void HLKLD2402Component::check_power_interference() {
     
     // Exit config mode if needed
     if (entered_config_mode) {
-      ESP_LOGI(TAG, "Exiting config mode");
-      send_command_(CMD_DISABLE_CONFIG);
-      delay(200);
-      config_mode_ = false;
+      exit_config_mode_();
     }
     return;
   }
   
-  // Wait and then check for raw response bytes (don't rely on our frame matching)
+  // Wait for response
   delay(1000);
   
-  // Look for any response bytes
+  // Look for response bytes
   uint32_t start = millis();
   std::vector<uint8_t> raw_bytes;
   ESP_LOGI(TAG, "Waiting for raw response bytes...");
@@ -927,7 +922,7 @@ void HLKLD2402Component::check_power_interference() {
     yield();
   }
   
-  // Analyze any bytes received
+  // Analyze received bytes
   if (!raw_bytes.empty()) {
     // Log all received bytes for debugging
     char hex_buf[128] = {0};
@@ -935,27 +930,55 @@ void HLKLD2402Component::check_power_interference() {
     
     for (size_t i = 0; i < raw_bytes.size() && i < 30; i++) {
       sprintf(hex_buf + (i*3), "%02X ", raw_bytes[i]);
-      sprintf(ascii_buf + i, "%c", (raw_bytes[i] >= 32 && raw_bytes[i] < 127) ? raw_bytes[i] : '.');
+      ascii_buf[i] = (raw_bytes[i] >= 32 && raw_bytes[i] < 127) ? raw_bytes[i] : '.';
     }
     
     ESP_LOGI(TAG, "Raw response (%d bytes): %s", raw_bytes.size(), hex_buf);
     ESP_LOGI(TAG, "ASCII: %s", ascii_buf);
     
-    // Try to make sense of the response - look for the value 0x02 which might indicate interference
+    // According to docs, check both for binary and ASCII responses:
+    // 1. Binary: Value 1 = no interference, Value 2 = interference
+    // 2. ASCII: "OFF" = no interference, "ON" = interference
+    
     bool has_interference = false;
     
-    // Check several patterns that might indicate power interference
-    for (size_t i = 0; i < raw_bytes.size(); i++) {
-      if (raw_bytes[i] == 0x02) {
-        ESP_LOGI(TAG, "Found 0x02 at position %d - possible interference indicator", i);
+    // Check for ASCII "ON"/"OFF" response first (as seen in logs)
+    if (raw_bytes.size() >= 3 && 
+        raw_bytes[0] == 'O' && 
+        ((raw_bytes[1] == 'F' && raw_bytes[2] == 'F') ||
+         (raw_bytes[1] == 'N'))) {
+         
+      if (raw_bytes[1] == 'N') {
+        // "ON" response indicates interference
         has_interference = true;
+        ESP_LOGI(TAG, "Detected 'ON' response - power interference detected");
+      } else {
+        // "OFF" response indicates no interference
+        has_interference = false;
+        ESP_LOGI(TAG, "Detected 'OFF' response - no power interference");
+      }
+    }
+    // Also check for binary response values (per documentation)
+    else {
+      // Look for values 0x01 (no interference) or 0x02 (interference)
+      for (size_t i = 0; i < raw_bytes.size(); i++) {
+        if (raw_bytes[i] == 0x02) {
+          has_interference = true;
+          ESP_LOGI(TAG, "Found binary value 0x02 at position %d - interference detected", i);
+          break;
+        }
+        else if (raw_bytes[i] == 0x01) {
+          has_interference = false;
+          ESP_LOGI(TAG, "Found binary value 0x01 at position %d - no interference", i);
+          break;
+        }
       }
     }
     
-    // Make a best guess based on what we received
+    // Update sensor state
     if (this->power_interference_binary_sensor_ != nullptr) {
       this->power_interference_binary_sensor_->publish_state(has_interference);
-      ESP_LOGI(TAG, "Set power interference to %s based on raw response analysis", 
+      ESP_LOGI(TAG, "Set power interference to %s based on response analysis", 
                has_interference ? "ON (interference detected)" : "OFF (no interference)");
     }
   } else {
@@ -971,10 +994,7 @@ void HLKLD2402Component::check_power_interference() {
   
   // Exit config mode if we entered it in this function
   if (entered_config_mode) {
-    ESP_LOGI(TAG, "Exiting config mode");
-    send_command_(CMD_DISABLE_CONFIG);
-    delay(500);
-    config_mode_ = false;
+    exit_config_mode_();
   }
 }
 
