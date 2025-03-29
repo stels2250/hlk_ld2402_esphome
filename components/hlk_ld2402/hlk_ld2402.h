@@ -5,11 +5,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-
-// Try to include text_sensor if available
-#ifdef USE_TEXT_SENSOR
-#include "esphome/components/text_sensor/text_sensor.h"
-#endif
+#include "esphome/components/text_sensor/text_sensor.h"  // Include without condition
 
 namespace esphome {
 namespace hlk_ld2402 {
@@ -76,11 +72,9 @@ public:
   void set_max_distance(float max_distance) { max_distance_ = max_distance; }
   void set_timeout(uint32_t timeout) { timeout_ = timeout; }
   
-#ifdef USE_TEXT_SENSOR
   void set_firmware_version_text_sensor(text_sensor::TextSensor *version_sensor) { 
     this->firmware_version_text_sensor_ = version_sensor; 
   }
-#endif
   
   void setup() override;
   void loop() override;
@@ -122,9 +116,7 @@ private:
   binary_sensor::BinarySensor *micromovement_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *power_interference_binary_sensor_{nullptr};
   
-#ifdef USE_TEXT_SENSOR
   text_sensor::TextSensor *firmware_version_text_sensor_{nullptr};
-#endif
   
   float max_distance_{5.0};
   uint32_t timeout_{5};

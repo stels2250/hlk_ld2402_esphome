@@ -3,10 +3,9 @@ import esphome.config_validation as cv
 from esphome.components import uart, text_sensor
 from esphome.const import CONF_ID, CONF_TIMEOUT, ENTITY_CATEGORY_DIAGNOSTIC
 
-DEPENDENCIES = ["uart"]
-# Add text_sensor to dependencies
-DEPENDENCIES.append("text_sensor")
-AUTO_LOAD = ["sensor", "binary_sensor"]  # Remove text_sensor from AUTO_LOAD
+# Make sure text_sensor is listed as a direct dependency
+DEPENDENCIES = ["uart", "text_sensor"]  # Explicitly add text_sensor here
+AUTO_LOAD = ["sensor", "binary_sensor"]  
 
 # Define our own constants
 CONF_MAX_DISTANCE = "max_distance"
