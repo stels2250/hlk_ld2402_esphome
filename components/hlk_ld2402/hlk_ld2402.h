@@ -121,6 +121,11 @@ public:
   
   void get_serial_number();
 
+  // Add new threshold setting methods
+  bool set_motion_threshold(uint8_t gate, float db_value);
+  bool set_micromotion_threshold(uint8_t gate, float db_value);
+  bool calibrate_with_coefficients(float trigger_coeff, float hold_coeff, float micromotion_coeff);
+
 protected:
   bool enter_config_mode_();
   bool enter_config_mode_quick_();  // New quick entry method

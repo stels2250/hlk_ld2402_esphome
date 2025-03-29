@@ -47,6 +47,60 @@ sensor:
 - Human presence usually causes a noticeable elevation in energy levels
 - Each gate has separate thresholds for motion and micromovement detection
 
+## Adjusting Detection Thresholds
+
+The HLK-LD2402 uses threshold values per distance gate to determine motion and micromovement detection. 
+You can adjust these thresholds for fine-tuning the sensor's sensitivity.
+
+### Threshold Types
+
+1. **Motion Thresholds**: Control when movement is detected (gates 0-15)
+2. **Micromotion Thresholds**: Control when micromovement (slight motion) is detected (gates 0-15)
+
+### Setting Thresholds via Services
+
+The component exposes services to adjust thresholds:
+
+```yaml
+# Set motion threshold for a specific gate
+- service: esphome.radar_sensor_set_motion_threshold
+  data:
+    gate: 0  # Gate index (0-15)
+    db_value: 45.0  # Threshold in dB (0-95)
+
+# Set micromotion threshold for a specific gate
+- service: esphome.radar_sensor_set_micromotion_threshold
+  data:
+    gate: 0  # Gate index (0-15)
+    db_value: 40.0  # Threshold in dB (0-95)
+```
+
+### Automatic Threshold Generation
+
+You can also use calibration with custom coefficients:
+
+```yaml
+# Calibrate with custom sensitivity coefficients
+- service: esphome.radar_sensor_calibrate_with_coefficients
+  data:
+    trigger_coefficient: 3.5  # Motion trigger coefficient (1.0-20.0)
+    hold_coefficient: 3.0  # Hold/presence coefficient (1.0-20.0)  
+    micromotion_coefficient: 4.0  # Micromotion coefficient (1.0-20.0)
+```
+
+Higher coefficient values result in higher thresholds (less sensitive).
+Lower coefficient values result in lower thresholds (more sensitive).
+
+### Understanding Threshold Values
+
+The raw energy values shown in engineering mode can help you determine appropriate threshold values:
+1. Switch to engineering mode
+2. Move around the space at different distances
+3. Note the energy values for each gate
+4. Set thresholds slightly below those energy values
+
+When the energy level exceeds a threshold, the corresponding detection (motion or micromovement) is triggered.
+
 ## Gate Distance Reference
 
 | Gate Index | Distance Range |
