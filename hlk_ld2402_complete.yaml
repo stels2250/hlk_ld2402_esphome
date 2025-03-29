@@ -98,7 +98,8 @@ button:
       - lambda: id(radar_sensor).save_config();
 
   - platform: template
-    name: "Engineering Mode"
+    name: "Engineering Mode Toggle"
+    icon: "mdi:tune"
     on_press:
       - lambda: id(radar_sensor).set_engineering_mode();
       

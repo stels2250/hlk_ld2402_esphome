@@ -888,16 +888,33 @@ bool HLKLD2402Component::set_work_mode_with_timeout_(uint32_t mode, uint32_t tim
     return false;
   }
 
-  // Log the response in detail
-  char hex_buf[64] = {0};
-  for (size_t i = 0; i < response.size() && i < 16; i++) {
-    sprintf(hex_buf + (i*3), "%02X ", response[i]);
-  }
-  ESP_LOGI(TAG, "Mode response: %s", hex_buf);
+  // Log the response in detail - improved hex format logging
+  ESP_LOGI(TAG, "Mode response hex bytes: %02X %02X %02X %02X %02X %02X", 
+           response.size() > 0 ? response[0] : 0, 
+           response.size() > 1 ? response[1] : 0,
+           response.size() > 2 ? response[2] : 0,
+           response.size() > 3 ? response[3] : 0,
+           response.size() > 4 ? response[4] : 0,
+           response.size() > 5 ? response[5] : 0);
   
+  bool success = false;
+  
+  // Standard success check - ACK is 0x00 0x00
   if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
-    ESP_LOGI(TAG, "Work mode set successfully");
-    
+    success = true;
+    ESP_LOGI(TAG, "Work mode set successfully (standard ACK)");
+  }
+  // Engineering mode special case - first byte matches requested mode value
+  // Documentation shows one format but actual device uses different format
+  else if (mode == MODE_ENGINEERING && response.size() >= 3 && 
+           response[0] == (mode & 0xFF) && response[2] == (CMD_SET_MODE & 0xFF)) {
+    // The response format for engineering mode appears to be:
+    // [mode_byte] [00] [cmd_echo] [01] [00] [00]
+    success = true;
+    ESP_LOGI(TAG, "Engineering mode set successfully (device-specific response format)");
+  }
+  
+  if (success) {
     // Update the operating mode text
     if (mode == MODE_NORMAL || mode == MODE_PRODUCTION) {
       operating_mode_ = "Normal";
@@ -919,8 +936,58 @@ bool HLKLD2402Component::set_work_mode_with_timeout_(uint32_t mode, uint32_t tim
     return true;
   }
   
-  ESP_LOGE(TAG, "Invalid response to set work mode");
+  ESP_LOGE(TAG, "Invalid response to set work mode - doesn't match expected patterns");
   return false;
+}
+
+void HLKLD2402Component::set_engineering_mode() {
+  // Check if we're already in Engineering mode - if so, switch back to normal
+  if (operating_mode_ == "Engineering") {
+    ESP_LOGI(TAG, "Already in engineering mode, switching back to normal mode");
+    set_normal_mode();
+    return;
+  }
+
+  ESP_LOGI(TAG, "Switching to engineering mode...");
+  
+  // First enter config mode - most commands require this
+  if (!enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode for engineering mode");
+    return;
+  }
+  
+  // Try to set engineering mode with increased timeout
+  if (set_work_mode_with_timeout_(MODE_ENGINEERING, 2000)) {
+    ESP_LOGI(TAG, "Successfully set engineering mode");
+    // Don't exit config mode - engineering mode likely needs to stay in config mode
+  } else {
+    ESP_LOGE(TAG, "Failed to set engineering mode");
+    // Exit config mode since we failed
+    exit_config_mode_();
+  }
+}
+
+// Update the normal mode method to handle complete switch
+void HLKLD2402Component::set_normal_mode() {
+  ESP_LOGI(TAG, "Switching to normal mode...");
+  
+  // Enter config mode if not already in it
+  if (!config_mode_ && !enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode for normal mode");
+    return;
+  }
+  
+  // Set work mode
+  if (set_work_mode_(MODE_NORMAL)) {
+    ESP_LOGI(TAG, "Successfully switched to normal mode");
+    
+    // Always exit config mode when going to normal mode
+    exit_config_mode_();
+  } else {
+    ESP_LOGE(TAG, "Failed to set normal mode");
+    // Still try to exit config mode
+    exit_config_mode_();
+  }
 }
 
 // Update calibration to match new command format and improve progress tracking
@@ -1428,36 +1495,6 @@ bool HLKLD2402Component::enter_config_mode_() {
             
             return true;
           } else {
-            ESP_LOGW(TAG, "Invalid config mode response format - expected status 00 00");
-            
-            // Trace each byte to help diagnose the issue
-            ESP_LOGW(TAG, "Response details: %d bytes", response.size());
-            for (size_t i = 0; i < response.size() && i < 10; i++) {
-                ESP_LOGW(TAG, "  Byte[%d] = 0x%02X", i, response[i]);
-            }
-          }
-        }
-      }
-      delay(50);  // Small delay between checks
-    }
-    
-    ESP_LOGW(TAG, "No valid response to config mode command, retrying");
-    delay(500);  // Wait before retrying
-  }
-  
-  ESP_LOGE(TAG, "Failed to enter config mode after 3 attempts");
-  return false;
-}
-
-bool HLKLD2402Component::exit_config_mode_() {
-  if (!config_mode_)
-    return true;
-    
-  ESP_LOGD(TAG, "Exiting config mode...");
-  
-  // Send exit command
-  if (send_command_(CMD_DISABLE_CONFIG)) {
-    // Brief wait for response 
     delay(100);
     
     // Read any response but don't wait too long

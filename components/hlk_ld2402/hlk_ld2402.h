@@ -100,12 +100,11 @@ public:
   void check_power_interference();
   void factory_reset();  // Add new factory reset method
   
-  // Change this to just a declaration, not an implementation
+  // Change to make this toggle between engineering and normal mode
   void set_engineering_mode();
   
-  void set_normal_mode() {
-    set_work_mode_(MODE_NORMAL);
-  }
+  // Update this to handle full transition to normal mode
+  void set_normal_mode();
   
   void get_serial_number();
 
