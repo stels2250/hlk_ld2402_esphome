@@ -218,82 +218,105 @@ void HLKLD2402Component::loop() {
       raw_pos = 0;
     }
     
-    // Check for beginning of binary frame header - IMPORTANT: Skip entire protocol frames
+    // Modified binary frame detection to be more strict
     if (c == FRAME_HEADER[0]) {
-      // This is likely the start of a binary frame
-      // Check if we have enough bytes to verify it's a frame header
-      int header_match_count = 1;
-      uint32_t peek_start = millis();
-      
-      // Try to consume the entire frame header and skip it
-      while (header_match_count < 4 && (millis() - peek_start) < 100) {
-        if (available()) {
-          uint8_t next;
-          read_byte(&next);
-          byte_count++;
+      // Only consider it a frame header if we have enough bytes available
+      if (available() >= 3) {
+        // Peek at the next 3 bytes to check if they match the header exactly
+        bool is_frame_header = true;
+        uint8_t peek_buffer[3];
+        
+        // Read the next 3 bytes without removing them from the buffer
+        for (int i = 0; i < 3; i++) {
+          if (!peek_byte(&peek_buffer[i], i)) {
+            is_frame_header = false;
+            break;
+          }
           
-          if (next == FRAME_HEADER[header_match_count]) {
-            header_match_count++;
-          } else {
-            // Not a frame header, add the bytes to the line buffer
-            line_buffer_ += (char)c;
-            line_buffer_ += (char)next;
+          if (peek_buffer[i] != FRAME_HEADER[i + 1]) {
+            is_frame_header = false;
             break;
           }
         }
-        yield();
-      }
-      
-      // If we matched the complete header, discard the entire frame
-      if (header_match_count == 4) {
-        ESP_LOGD(TAG, "Detected binary protocol frame - skipping");
         
-        // Skip the rest of this frame until we see footer or timeout
-        uint32_t skip_start = millis();
-        uint8_t footer_match = 0;
-        
-        while (footer_match < 4 && (millis() - skip_start) < 200) {
-          if (available()) {
-            uint8_t frame_byte;
-            read_byte(&frame_byte);
+        if (is_frame_header) {
+          // It's a valid frame header, consume the 3 peeked bytes
+          for (int i = 0; i < 3; i++) {
+            uint8_t discard;
+            read_byte(&discard);
             byte_count++;
-            
-            if (frame_byte == FRAME_FOOTER[footer_match]) {
-              footer_match++;
-            } else {
-              footer_match = 0;
-            }
           }
-          yield();
+          
+          ESP_LOGD(TAG, "Detected binary protocol frame - skipping");
+          
+          // Skip the rest of this frame until we see footer or timeout
+          uint32_t skip_start = millis();
+          uint8_t footer_match = 0;
+          
+          while (footer_match < 4 && (millis() - skip_start) < 200) {
+            if (available()) {
+              uint8_t frame_byte;
+              read_byte(&frame_byte);
+              byte_count++;
+              
+              if (frame_byte == FRAME_FOOTER[footer_match]) {
+                footer_match++;
+              } else {
+                footer_match = 0;
+              }
+            }
+            yield();
+          }
+          
+          // Frame skipped, continue with next data
+          continue;
         }
-        
-        // Frame skipped, continue with next data
-        continue;
       }
     }
     
+    // Check for text data - add to line buffer
     if (c == '\n') {
-      // Process complete line, but check throttling first
+      // Process complete line
       if (!line_buffer_.empty()) {
         bool should_process = millis() - last_process_time >= PROCESS_INTERVAL;
         
         if (should_process) {
           last_process_time = millis();
           
-          // Only process if it looks like text
+          // Less restrictive binary check - only look for obviously non-text chars
           bool is_binary = false;
           for (char ch : line_buffer_) {
-            if (ch < 32 && ch != '\t' && ch != '\r') {
-              is_binary = true;
-              break;
+            // Only consider control chars below space as binary (except tab and CR)
+            if (ch < 32 && ch != '\t' && ch != '\r' && ch != '\n') {
+              // Count actual binary characters
+              int binary_count = 0;
+              for (char c2 : line_buffer_) {
+                if (c2 < 32 && c2 != '\t' && c2 != '\r' && c2 != '\n') {
+                  binary_count++;
+                }
+              }
+              
+              // Only mark as binary if we have several binary chars (>25%)
+              if (binary_count > line_buffer_.length() / 4) {
+                is_binary = true;
+                break;
+              }
             }
           }
           
+          // Debug - show the line data regardless
+          ESP_LOGI(TAG, "Received line [%d bytes]: '%s'", line_buffer_.length(), line_buffer_.c_str());
           if (!is_binary) {
-            ESP_LOGI(TAG, "Received line: '%s'", line_buffer_.c_str());
             process_line_(line_buffer_);
           } else {
             ESP_LOGD(TAG, "Skipped binary data that looks like a protocol frame");
+            
+            // Debug: Show hex representation of binary data
+            char hex_buf[128] = {0};
+            for (size_t i = 0; i < std::min(line_buffer_.length(), size_t(32)); i++) {
+              sprintf(hex_buf + (i*3), "%02X ", (uint8_t)line_buffer_[i]);
+            }
+            ESP_LOGD(TAG, "Binary data hex: %s", hex_buf);
           }
         }
         line_buffer_.clear();
@@ -301,6 +324,19 @@ void HLKLD2402Component::loop() {
     } else if (c != '\r') {  // Skip \r
       if (line_buffer_.length() < 1024) {
         line_buffer_ += (char)c;
+        
+        // Added: Check for direct "distance:" line without proper termination
+        if (line_buffer_.length() >= 12 && 
+            line_buffer_.compare(line_buffer_.length() - 12, 9, "distance:") == 0) {
+          // We found a distance prefix - process the previous data if any
+          std::string prev_data = line_buffer_.substr(0, line_buffer_.length() - 12);
+          if (!prev_data.empty()) {
+            ESP_LOGI(TAG, "Found distance prefix, processing previous data: '%s'", prev_data.c_str());
+            process_line_(prev_data);
+          }
+          // Keep only the distance part
+          line_buffer_ = line_buffer_.substr(line_buffer_.length() - 12);
+        }
       } else {
         ESP_LOGW(TAG, "Line buffer overflow, clearing");
         line_buffer_.clear();
@@ -360,6 +396,7 @@ void HLKLD2402Component::loop() {
 void HLKLD2402Component::process_line_(const std::string &line) {
   ESP_LOGD(TAG, "Processing line: '%s'", line.c_str());
   
+  // Handle OFF status
   if (line == "OFF") {
     ESP_LOGI(TAG, "No target detected");
     if (this->presence_binary_sensor_ != nullptr) {
@@ -374,14 +411,18 @@ void HLKLD2402Component::process_line_(const std::string &line) {
     return;
   }
 
-  // Handle different formats of distance data
+  // Handle different formats of distance data more robustly
   float distance_cm = 0;
   bool valid_distance = false;
   
-  // Format "distance:236" (no units specified)
-  if (line.compare(0, 9, "distance:") == 0) {
-    std::string distance_str = line.substr(9);
-    // Remove any trailing characters
+  // Check if line contains "distance:" anywhere in the string
+  size_t dist_pos = line.find("distance:");
+  if (dist_pos != std::string::npos) {
+    // Extract everything after "distance:"
+    std::string distance_str = line.substr(dist_pos + 9);
+    ESP_LOGI(TAG, "Found distance data: '%s'", distance_str.c_str());
+    
+    // Remove any trailing non-numeric characters
     size_t pos = distance_str.find_first_not_of("0123456789.");
     if (pos != std::string::npos) {
       distance_str = distance_str.substr(0, pos);
@@ -395,6 +436,26 @@ void HLKLD2402Component::process_line_(const std::string &line) {
       distance_cm = distance;
       valid_distance = true;
       ESP_LOGI(TAG, "Detected distance: %.1f cm", distance_cm);
+    }
+  } else {
+    // Try parsing just a number (some devices output just the number)
+    bool is_numeric = true;
+    for (char ch : line) {
+      if (!isdigit(ch) && ch != '.') {
+        is_numeric = false;
+        break;
+      }
+    }
+    
+    if (is_numeric && !line.empty()) {
+      char *end;
+      float distance = strtof(line.c_str(), &end);
+      
+      if (end != line.c_str()) {
+        distance_cm = distance;
+        valid_distance = true;
+        ESP_LOGI(TAG, "Detected numeric distance: %.1f cm", distance_cm);
+      }
     }
   }
   
