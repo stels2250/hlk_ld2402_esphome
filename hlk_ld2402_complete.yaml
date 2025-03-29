@@ -55,13 +55,13 @@ sensor:
     
   # Calibration progress sensor
   - platform: hlk_ld2402
-    calibration_progress: true
     id: radar_calibration_progress
     name: "Radar Calibration Progress"
     hlk_ld2402_id: radar_sensor
     unit_of_measurement: "%"
     icon: "mdi:progress-wrench"
     entity_category: diagnostic
+    calibration_progress: true
 
 # Text sensors
 text_sensor:
