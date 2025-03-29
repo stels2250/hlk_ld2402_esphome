@@ -431,39 +431,80 @@ void HLKLD2402Component::loop() {
           }
           ESP_LOGD(TAG, "Calibration status response: %s", hex_buf);
           
-          // According to protocol section 5.2.10:
-          // Response format includes 2 bytes ACK status (00 00) followed by 2 bytes percentage
-          if (response.size() >= 4) {
-            // First validate the ACK status
-            if (response[0] == 0x00 && response[1] == 0x00) {
-              // Read percentage value - little endian (LSB first)
-              uint16_t progress = response[2] | (response[3] << 8);
+          // Handle the actual device response format which differs from the documentation
+          // Expected format: 06 00 0A 01 00 00 XX 00 - where XX is the progress value
+          if (response.size() >= 8) {
+            // Check for a response that matches the observed pattern
+            if (response[0] == 0x06 && response[1] == 0x00 &&
+                response[2] == 0x0A && response[3] == 0x01) {
               
-              // Diagnostic log for progress value
-              ESP_LOGD(TAG, "Raw progress value: 0x%04X (%u)", progress, progress);
+              // Extract progress from position 6
+              uint16_t progress = response[6]; // Use only the progress byte
               
-              // Sanity check: ensure progress is 0-100
-              if (progress > 100) {
-                ESP_LOGW(TAG, "Invalid calibration progress value: %u, capping to 100", progress);
-                progress = 100;
+              ESP_LOGD(TAG, "Raw progress value: 0x%02X (%u)", progress, progress);
+              
+              // Convert to percentage - appears to be counting up to 100 (0x64)
+              uint16_t percentage = (progress * 100) / 0x64;
+              
+              // Cap to 100% 
+              if (percentage > 100) {
+                percentage = 100;
               }
               
-              calibration_progress_ = progress;
-              ESP_LOGI(TAG, "Calibration progress: %u%%", progress);
-              this->calibration_progress_sensor_->publish_state(progress);
+              ESP_LOGI(TAG, "Calibration progress: %u%% (raw value: %u)", 
+                      percentage, progress);
+              calibration_progress_ = percentage;
               
-              // Check if calibration is complete
-              if (progress >= 100) {
+              if (this->calibration_progress_sensor_ != nullptr) {
+                this->calibration_progress_sensor_->publish_state(percentage);
+              }
+              
+              // Check if calibration is complete (progress value reaches 0x64)
+              if (progress >= 0x64) {
                 ESP_LOGI(TAG, "Calibration complete");
                 calibration_in_progress_ = false;
                 exit_config_mode_();
               }
-            } else {
-              ESP_LOGW(TAG, "Invalid ACK status in calibration response: %02X %02X", 
-                      response[0], response[1]);
+              
+              // We successfully processed the response
+              continue;
             }
-          } else {
-            ESP_LOGW(TAG, "Calibration status response too short: %d bytes", response.size());
+            else if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+              // Handle the documented response format just in case
+              // According to protocol section 5.2.10:
+              // Response format includes 2 bytes ACK status (00 00) followed by 2 bytes percentage
+              if (response.size() >= 4) {
+                // Read percentage value - little endian (LSB first)
+                uint16_t progress = response[2] | (response[3] << 8);
+                
+                ESP_LOGD(TAG, "Raw progress value (standard format): 0x%04X (%u)", progress, progress);
+                
+                // Sanity check: ensure progress is 0-100
+                if (progress > 100) {
+                  ESP_LOGW(TAG, "Invalid calibration progress value: %u, capping to 100", progress);
+                  progress = 100;
+                }
+                
+                calibration_progress_ = progress;
+                ESP_LOGI(TAG, "Calibration progress: %u%% (standard format)", progress);
+                this->calibration_progress_sensor_->publish_state(progress);
+                
+                // Check if calibration is complete
+                if (progress >= 100) {
+                  ESP_LOGI(TAG, "Calibration complete");
+                  calibration_in_progress_ = false;
+                  exit_config_mode_();
+                }
+                
+                continue;
+              }
+            }
+          }
+          
+          // If we reach here, we didn't recognize the format
+          ESP_LOGW(TAG, "Unrecognized calibration status response format. Raw bytes:");
+          for (size_t i = 0; i < response.size() && i < 16; i++) {
+            ESP_LOGW(TAG, "  Byte[%d] = 0x%02X", i, response[i]);
           }
         } else {
           ESP_LOGW(TAG, "No response to calibration status query");
