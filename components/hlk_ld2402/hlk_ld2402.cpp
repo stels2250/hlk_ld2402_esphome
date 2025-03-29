@@ -38,6 +38,84 @@ void HLKLD2402Component::setup() {
   
   // Don't check power interference immediately - use a delayed operation
   ESP_LOGI(TAG, "Will check power interference status after 60 seconds");
+  
+  // Get firmware version after setup
+  get_firmware_version_();
+}
+
+// Add new function to get firmware version
+void HLKLD2402Component::get_firmware_version_() {
+  ESP_LOGI(TAG, "Retrieving firmware version...");
+  
+  // Clear any pending data
+  flush();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+  }
+  
+  bool entered_config_mode = false;
+  
+  if (!config_mode_) {
+    if (!enter_config_mode_()) {
+      ESP_LOGW(TAG, "Failed to enter config mode for firmware version check");
+      if (firmware_version_text_sensor_ != nullptr) {
+        firmware_version_text_sensor_->publish_state("Unknown");
+      }
+      return;
+    }
+    entered_config_mode = true;
+  }
+  
+  // Send version command
+  if (!send_command_(CMD_GET_VERSION)) {
+    ESP_LOGW(TAG, "Failed to send version command");
+    if (firmware_version_text_sensor_ != nullptr) {
+      firmware_version_text_sensor_->publish_state("Unknown");
+    }
+    
+    if (entered_config_mode) {
+      exit_config_mode_();
+    }
+    return;
+  }
+  
+  delay(1000);  // Wait for response
+  
+  std::vector<uint8_t> response;
+  if (read_response_(response, 3000)) {
+    char version[32] = "Unknown";
+    
+    // Log raw response
+    char hex_buf[128] = {0};
+    for (size_t i = 0; i < response.size() && i < 20; i++) {
+      sprintf(hex_buf + (i*3), "%02X ", response[i]);
+    }
+    ESP_LOGI(TAG, "Version response: %s", hex_buf);
+    
+    // Try to extract version info - usually in the format "V1.2.3"
+    if (response.size() >= 3) {
+      // Format version as "vX.Y.Z" based on bytes in response
+      sprintf(version, "v%d.%d.%d", response[0], response.size() > 1 ? response[1] : 0, 
+              response.size() > 2 ? response[2] : 0);
+      firmware_version_ = version;  // Also update the internal version string
+      ESP_LOGI(TAG, "Firmware version: %s", version);
+    }
+    
+    // Publish version to Home Assistant
+    if (firmware_version_text_sensor_ != nullptr) {
+      firmware_version_text_sensor_->publish_state(version);
+    }
+  } else {
+    ESP_LOGW(TAG, "No response to version command");
+    if (firmware_version_text_sensor_ != nullptr) {
+      firmware_version_text_sensor_->publish_state("Unknown");
+    }
+  }
+  
+  if (entered_config_mode) {
+    exit_config_mode_();
+  }
 }
 
 void HLKLD2402Component::loop() {

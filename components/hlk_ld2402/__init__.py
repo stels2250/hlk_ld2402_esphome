@@ -4,8 +4,8 @@ from esphome.components import uart
 from esphome.const import CONF_ID, CONF_TIMEOUT
 
 DEPENDENCIES = ["uart"]
-# Remove button from AUTO_LOAD since we're using template buttons
-AUTO_LOAD = ["sensor", "binary_sensor"]
+# Add text_sensor to AUTO_LOAD
+AUTO_LOAD = ["sensor", "binary_sensor", "text_sensor"]
 
 # Define our own constants
 CONF_MAX_DISTANCE = "max_distance"
