@@ -210,7 +210,7 @@ button:
             id(micromotion_coefficient).state
           );
 
-# Add sliders for calibration coefficients
+# Add sliders for calibration coefficients and gate thresholds - all sliders must be in number section
 number:
   - platform: template
     name: "Trigger Coefficient"

@@ -1055,6 +1055,15 @@ bool HLKLD2402Component::set_work_mode_with_timeout_(uint32_t mode, uint32_t tim
     success = true;
     ESP_LOGI(TAG, "Engineering mode set successfully (device-specific response format)");
   }
+  // NEW: Additional format for exiting engineering mode
+  else if (mode == MODE_PRODUCTION && response.size() >= 6 && 
+           response[0] == 0x04 && response[2] == (CMD_SET_MODE & 0xFF) && 
+           response[3] == 0x01 && response[4] == 0x00 && response[5] == 0x00) {
+    // When exiting engineering mode, we get: 04 00 12 01 00 00
+    // This appears to be [prev_mode] [00] [cmd_echo] [01] [00] [00]
+    success = true;
+    ESP_LOGI(TAG, "Normal mode set successfully (engineering exit response format)");
+  }
   
   if (success) {
     // Update the operating mode text
