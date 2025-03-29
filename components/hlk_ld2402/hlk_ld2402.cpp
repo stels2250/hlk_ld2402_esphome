@@ -634,5 +634,170 @@ void HLKLD2402Component::factory_reset() {
   flush();
 }
 
+// Make sure we have matching implementations for ALL protected methods
+bool HLKLD2402Component::enter_config_mode_() {
+  if (config_mode_)
+    return true;
+    
+  ESP_LOGD(TAG, "Entering config mode...");
+  
+  // Clear any pending data first
+  flush();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+  }
+  
+  // Try multiple times with delays
+  for (int attempt = 0; attempt < 3; attempt++) {
+    ESP_LOGI(TAG, "Config mode attempt %d", attempt + 1);
+    
+    // Send the command with no data
+    if (!send_command_(CMD_ENABLE_CONFIG)) {
+      ESP_LOGE(TAG, "Failed to send config mode command");
+      delay(500);  // Wait before retrying
+      continue;
+    }
+    
+    // Delay slightly to ensure response has time to arrive
+    delay(200);
+    
+    // Check for response with timeout
+    uint32_t start = millis();
+    while ((millis() - start) < 1000) {  // 1 second timeout
+      if (available() >= 12) {  // Minimum expected response size with header/footer
+        std::vector<uint8_t> response;
+        if (read_response_(response)) {  // Use default timeout here
+          ESP_LOGI(TAG, "Received response to config mode command");
+          
+          // Dump the response bytes for debugging
+          char hex_buf[128] = {0};
+          for (size_t i = 0; i < response.size() && i < 20; i++) {
+            sprintf(hex_buf + (i*3), "%02X ", response[i]);
+          }
+          ESP_LOGI(TAG, "Response: %s", hex_buf);
+          
+          // Looking at logs, the response is: "08 00 FF 01 00 00 02 00 20 00"
+          // Format: Length (2) + Command ID (FF 01) + Status (00 00) + Protocol version (02 00) + Buffer size (20 00)
+          if (response.size() >= 6 && 
+              response[0] == 0xFF && response[1] == 0x01 && 
+              response[2] == 0x00 && response[3] == 0x00) {
+            config_mode_ = true;
+            ESP_LOGI(TAG, "Successfully entered config mode");
+            return true;
+          } else if (response.size() >= 6 && 
+                    response[4] == 0x00 && response[5] == 0x00) {
+            // Alternative format sometimes seen
+            config_mode_ = true;
+            ESP_LOGI(TAG, "Successfully entered config mode (alt format)");
+            return true;
+          } else {
+            ESP_LOGW(TAG, "Invalid config mode response format - expected status 00 00");
+            
+            // Trace each byte to help diagnose the issue
+            ESP_LOGW(TAG, "Response details: %d bytes", response.size());
+            for (size_t i = 0; i < response.size() && i < 10; i++) {
+                ESP_LOGW(TAG, "  Byte[%d] = 0x%02X", i, response[i]);
+            }
+          }
+        }
+      }
+      delay(50);  // Small delay between checks
+    }
+    
+    ESP_LOGW(TAG, "No valid response to config mode command, retrying");
+    delay(500);  // Wait before retrying
+  }
+  
+  ESP_LOGE(TAG, "Failed to enter config mode after 3 attempts");
+  return false;
+}
+
+bool HLKLD2402Component::exit_config_mode_() {
+  if (!config_mode_)
+    return true;
+    
+  ESP_LOGD(TAG, "Exiting config mode...");
+  
+  if (!send_command_(CMD_DISABLE_CONFIG)) {
+    ESP_LOGE(TAG, "Failed to send exit config mode command");
+    return false;
+  }
+    
+  std::vector<uint8_t> response;
+  if (!read_response_(response)) {  // Use default timeout
+    ESP_LOGE(TAG, "No response to exit config mode command");
+    return false;
+  }
+    
+  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+    config_mode_ = false;
+    ESP_LOGI(TAG, "Successfully exited config mode");
+    return true;
+  }
+  
+  ESP_LOGE(TAG, "Invalid response to exit config mode command");
+  return false;
+}
+
+bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
+  ESP_LOGD(TAG, "Setting parameter 0x%04X to %u", param_id, value);
+  
+  uint8_t data[6];
+  data[0] = param_id & 0xFF;
+  data[1] = (param_id >> 8) & 0xFF;
+  data[2] = value & 0xFF;
+  data[3] = (value >> 8) & 0xFF;
+  data[4] = (value >> 16) & 0xFF;
+  data[5] = (value >> 24) & 0xFF;
+  
+  if (!send_command_(CMD_SET_PARAMS, data, sizeof(data))) {
+    ESP_LOGE(TAG, "Failed to send set parameter command");
+    return false;
+  }
+    
+  // Add a small delay after sending command
+  delay(100);
+    
+  std::vector<uint8_t> response;
+  if (!read_response_(response)) {  // Use default timeout
+    ESP_LOGE(TAG, "No response to set parameter command");
+    return false;
+  }
+  
+  // Log the response for debugging
+  char hex_buf[64] = {0};
+  for (size_t i = 0; i < response.size() && i < 16; i++) {
+    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+  }
+  ESP_LOGD(TAG, "Set parameter response: %s", hex_buf);
+  
+  // Do basic error checking without being too strict on validation
+  if (response.size() < 2) {
+    ESP_LOGE(TAG, "Response too short");
+    return false;
+  }
+  
+  // Check for known error patterns
+  bool has_error = false;
+  if (response[0] == 0xFF && response[1] == 0xFF) {
+    has_error = true;  // This typically indicates an error
+  }
+  
+  if (has_error) {
+    ESP_LOGE(TAG, "Parameter setting failed with error response");
+    return false;
+  }
+  
+  // For other responses, be permissive and assume success
+  return true;
+}
+
+// Fix all the places where we used read_response_ with a custom timeout
+// by adding an implementation overload that uses the default timeout
+bool HLKLD2402Component::read_response_(std::vector<uint8_t> &response) {
+  return read_response_(response, 1000);  // Call the main implementation with default timeout
+}
+
 }  // namespace hlk_ld2402
 }  // namespace esphome
