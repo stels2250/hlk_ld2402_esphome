@@ -483,7 +483,7 @@ void HLKLD2402Component::enable_auto_gain() {
 }
 
 void HLKLD2402Component::check_power_interference() {
-  ESP_LOGD(TAG, "Checking power interference status");
+  ESP_LOGI(TAG, "Checking power interference status");  // Make this an INFO level log
   
   // Clear any pending data first
   flush();
@@ -509,19 +509,57 @@ void HLKLD2402Component::check_power_interference() {
     entered_config_mode = true;
   }
   
-  // Add a delay after entering config mode
-  delay(200);
+  // Add a MUCH longer delay after entering config mode
+  ESP_LOGI(TAG, "Waiting for device to be ready for parameter request...");
+  delay(1000);  // Wait a full second before sending the next command
   
   uint32_t value = 0;
   bool success = false;
   
-  // Try multiple times to get the parameter
+  // Try multiple times with longer delays between attempts
   for (int attempt = 0; attempt < 2; attempt++) {
-    if (get_parameter_(PARAM_POWER_INTERFERENCE, value)) {
-      success = true;
-      break;
+    ESP_LOGI(TAG, "Retrieving power interference parameter (attempt %d)", attempt + 1);
+    
+    // Send the command directly rather than using get_parameter_
+    uint8_t data[2];
+    data[0] = PARAM_POWER_INTERFERENCE & 0xFF;
+    data[1] = (PARAM_POWER_INTERFERENCE >> 8) & 0xFF;
+    
+    if (!send_command_(CMD_GET_PARAMS, data, sizeof(data))) {
+      ESP_LOGE(TAG, "Failed to send get parameter command");
+      delay(1000);
+      continue;
     }
-    delay(100);
+    
+    // Wait longer before trying to read response
+    delay(1000);
+    
+    // Use a much longer timeout - 6 seconds
+    std::vector<uint8_t> response;
+    if (read_response_(response, 6000)) {
+      // Log the raw response
+      char hex_buf[64] = {0};
+      for (size_t i = 0; i < response.size() && i < 16; i++) {
+        sprintf(hex_buf + (i*3), "%02X ", response[i]);
+      }
+      ESP_LOGI(TAG, "Power interference parameter response: %s", hex_buf);
+      
+      // Parse response if we have enough data
+      if (response.size() >= 6) {
+        value = response[2] | (response[3] << 8) | (response[4] << 16) | (response[5] << 24);
+        ESP_LOGI(TAG, "Power interference status value: %u", value);
+        success = true;
+        break;
+      } else if (response.size() >= 2) {
+        value = response[0] | (response[1] << 8);
+        ESP_LOGI(TAG, "Short power interference response, value: %u", value);
+        success = true;
+        break;
+      }
+    }
+    
+    // Wait longer between attempts
+    delay(1000);
   }
   
   if (success) {
@@ -549,7 +587,7 @@ void HLKLD2402Component::check_power_interference() {
     // Use a simplified exit method that always succeeds
     ESP_LOGI(TAG, "Exiting config mode");
     send_command_(CMD_DISABLE_CONFIG);
-    delay(100);
+    delay(500);  // More delay here too
     config_mode_ = false;
   }
 }
