@@ -49,12 +49,24 @@ void HLKLD2402Component::setup() {
   
   // Start passive version detection immediately
   begin_passive_version_detection_();
+  
+  // Set initial operating mode text
+  operating_mode_ = "Normal";
+  publish_operating_mode_();
 }
 
 // New function to passively monitor output for version info
 void HLKLD2402Component::begin_passive_version_detection_() {
   ESP_LOGI(TAG, "Starting passive version detection");
   firmware_version_ = "HLK-LD2402"; // Default fallback version
+}
+
+// Add method to publish operating mode
+void HLKLD2402Component::publish_operating_mode_() {
+  if (operating_mode_text_sensor_ != nullptr) {
+    operating_mode_text_sensor_->publish_state(operating_mode_);
+    ESP_LOGI(TAG, "Published operating mode: %s", operating_mode_.c_str());
+  }
 }
 
 // Update get_firmware_version_ method to use correct command and parsing
@@ -596,6 +608,17 @@ bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
 
   if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
     ESP_LOGI(TAG, "Work mode set successfully");
+    
+    // Update the operating mode text
+    if (mode == MODE_NORMAL || mode == MODE_PRODUCTION) {
+      operating_mode_ = "Normal";
+    } else if (mode == MODE_ENGINEERING) {
+      operating_mode_ = "Engineering";
+    } else {
+      operating_mode_ = "Unknown";
+    }
+    
+    publish_operating_mode_();
     return true;
   }
   
@@ -1084,12 +1107,22 @@ bool HLKLD2402Component::enter_config_mode_() {
               response[2] == 0x00 && response[3] == 0x00) {
             config_mode_ = true;
             ESP_LOGI(TAG, "Successfully entered config mode");
+            
+            // Update operating mode
+            operating_mode_ = "Config";
+            publish_operating_mode_();
+            
             return true;
           } else if (response.size() >= 6 && 
                     response[4] == 0x00 && response[5] == 0x00) {
             // Alternative format sometimes seen
             config_mode_ = true;
             ESP_LOGI(TAG, "Successfully entered config mode (alt format)");
+            
+            // Update operating mode
+            operating_mode_ = "Config";
+            publish_operating_mode_();
+            
             return true;
           } else {
             ESP_LOGW(TAG, "Invalid config mode response format - expected status 00 00");
@@ -1135,6 +1168,12 @@ bool HLKLD2402Component::exit_config_mode_() {
   // Always mark as exited regardless of response
   config_mode_ = false;
   ESP_LOGI(TAG, "Left config mode");
+  
+  // Update operating mode back to either Normal or Engineering
+  if (operating_mode_ == "Config") {
+    operating_mode_ = "Normal";  // Default to Normal when exiting config mode
+    publish_operating_mode_();
+  }
   
   // Clear any pending data to ensure clean state
   flush();

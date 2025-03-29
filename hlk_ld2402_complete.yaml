@@ -54,13 +54,21 @@ sensor:
     filters:
       - throttle: 2s
 
-# Add text sensor section
+# Text sensors
 text_sensor:
   - platform: hlk_ld2402
     id: radar_firmware_version
     name: "Radar Firmware Version"
     entity_category: diagnostic
     hlk_ld2402_id: radar_sensor
+    firmware_version: true
+
+  - platform: hlk_ld2402
+    id: radar_operating_mode
+    name: "Radar Operating Mode"
+    entity_category: diagnostic
+    hlk_ld2402_id: radar_sensor
+    operating_mode: true
 
 # Control buttons - using template buttons 
 button:

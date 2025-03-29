@@ -79,6 +79,10 @@ public:
     this->firmware_version_text_sensor_ = version_sensor; 
   }
   
+  void set_operating_mode_text_sensor(text_sensor::TextSensor *mode_sensor) {
+    this->operating_mode_text_sensor_ = mode_sensor;
+  }
+  
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -92,6 +96,10 @@ public:
   // Add a new public method to set the work mode
   void set_engineering_mode() {
     set_work_mode_(MODE_ENGINEERING);
+  }
+  
+  void set_normal_mode() {
+    set_work_mode_(MODE_NORMAL);
   }
   
   void get_serial_number();
@@ -110,6 +118,7 @@ protected:
   bool write_frame_(const std::vector<uint8_t> &frame);  // New method
   void get_firmware_version_();  // Add the missing function declaration
   void begin_passive_version_detection_();  // New method for passive detection
+  void publish_operating_mode_();  // New method to publish the current operating mode
   
   bool save_configuration_();
   bool enable_auto_gain_();
@@ -130,6 +139,7 @@ private:
   binary_sensor::BinarySensor *power_interference_binary_sensor_{nullptr};
   
   text_sensor::TextSensor *firmware_version_text_sensor_{nullptr};
+  text_sensor::TextSensor *operating_mode_text_sensor_{nullptr};
   
   float max_distance_{5.0};
   uint32_t timeout_{5};
@@ -140,6 +150,7 @@ private:
   uint32_t last_calibration_status_{0};
   bool calibration_in_progress_{false};
   std::string serial_number_; // Add field to store serial number
+  std::string operating_mode_{"Normal"};  // Track the current operating mode
 };
 
 }  // namespace hlk_ld2402
