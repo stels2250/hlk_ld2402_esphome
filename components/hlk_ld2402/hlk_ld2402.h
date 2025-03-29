@@ -90,7 +90,7 @@ protected:
   bool enter_config_mode_();
   bool exit_config_mode_();
   bool send_command_(uint16_t command, const uint8_t *data = nullptr, size_t len = 0);
-  bool read_response_(std::vector<uint8_t> &response);
+  bool read_response_(std::vector<uint8_t> &response, uint32_t timeout_ms = 1000);  // Added timeout parameter
   bool set_parameter_(uint16_t param_id, uint32_t value);
   bool get_parameter_(uint16_t param_id, uint32_t &value);
   bool set_work_mode_(uint32_t mode);
