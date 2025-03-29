@@ -339,15 +339,16 @@ bool HLKLD2402Component::enter_config_mode_() {
           }
           ESP_LOGI(TAG, "Response: %s", hex_buf);
           
-          // Check if response indicates success
-          if (response.size() >= 8 && 
-              response[0] == 0xFF && response[1] == 0x01 &&
+          // FIXED: Check if response indicates success
+          // Response format: Length (2) + Command ID (2) + Status (2) + Return value (N)
+          // For command 0x00FF, return value is Protocol version (2) + Buffer size (2)
+          if (response.size() >= 4 && 
               response[2] == 0x00 && response[3] == 0x00) {
             config_mode_ = true;
             ESP_LOGI(TAG, "Successfully entered config mode");
             return true;
           } else {
-            ESP_LOGW(TAG, "Invalid config mode response format");
+            ESP_LOGW(TAG, "Invalid config mode response format - expected 00 00 status");
           }
         }
       }
