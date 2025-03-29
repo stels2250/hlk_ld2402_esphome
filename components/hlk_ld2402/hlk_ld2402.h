@@ -102,6 +102,7 @@ protected:
   void process_line_(const std::string &line);
   void dump_hex_(const uint8_t *data, size_t len, const char* prefix);
   bool write_frame_(const std::vector<uint8_t> &frame);  // New method
+  void get_firmware_version_();  // Add the missing function declaration
 
   // Convert dB value to raw threshold
   uint32_t db_to_threshold_(float db_value);
