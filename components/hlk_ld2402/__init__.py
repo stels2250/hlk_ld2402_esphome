@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart, text_sensor
 from esphome.const import CONF_ID, CONF_TIMEOUT, ENTITY_CATEGORY_DIAGNOSTIC
-from esphome.automation import register_service  # Add this import statement
 
 # Make sure text_sensor is listed as a direct dependency
 DEPENDENCIES = ["uart", "text_sensor"]
@@ -37,29 +36,4 @@ async def to_code(config):
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
-# Register services for setting individual gate thresholds
-@register_service(
-    "set_gate_motion_threshold", 
-    fields={
-        cv.Required("gate"): cv.int_range(min=0, max=15),
-        cv.Required("db_value"): cv.float_range(min=0, max=95),
-    }
-)
-async def gate_motion_threshold_service(component, call):
-    """Set the motion threshold for a specific gate."""
-    gate = call.data["gate"] 
-    db_value = call.data["db_value"]
-    await component.set_gate_motion_threshold(gate, db_value)
-
-@register_service(
-    "set_gate_micromotion_threshold", 
-    fields={
-        cv.Required("gate"): cv.int_range(min=0, max=15),
-        cv.Required("db_value"): cv.float_range(min=0, max=95),
-    }
-)
-async def gate_micromotion_threshold_service(component, call):
-    """Set the micromotion threshold for a specific gate."""
-    gate = call.data["gate"]
-    db_value = call.data["db_value"]
-    await component.set_gate_micromotion_threshold(gate, db_value)
+# Services are defined in services.yaml file and automatically loaded by ESPHome
