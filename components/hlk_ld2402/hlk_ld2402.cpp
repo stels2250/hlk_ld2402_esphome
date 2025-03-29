@@ -1608,26 +1608,5 @@ bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
   return true;
 }
 
-// Modify the set_engineering_mode method to enter config mode first
-void HLKLD2402Component::set_engineering_mode() {
-  ESP_LOGI(TAG, "Switching to engineering mode...");
-  
-  // First enter config mode - most commands require this
-  if (!enter_config_mode_()) {
-    ESP_LOGE(TAG, "Failed to enter config mode for engineering mode");
-    return;
-  }
-  
-  // Try to set engineering mode with increased timeout
-  if (set_work_mode_with_timeout_(MODE_ENGINEERING, 2000)) {
-    ESP_LOGI(TAG, "Successfully set engineering mode");
-    // Don't exit config mode - engineering mode likely needs to stay in config mode
-  } else {
-    ESP_LOGE(TAG, "Failed to set engineering mode");
-    // Exit config mode since we failed
-    exit_config_mode_();
-  }
-}
-
 }  // namespace hlk_ld2402
 }  // namespace esphome
