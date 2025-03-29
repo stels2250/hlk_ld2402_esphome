@@ -61,6 +61,7 @@ sensor:
     unit_of_measurement: "%"
     icon: "mdi:progress-wrench"
     entity_category: diagnostic
+    state_class: measurement
     calibration_progress: true
 
 # Text sensors
