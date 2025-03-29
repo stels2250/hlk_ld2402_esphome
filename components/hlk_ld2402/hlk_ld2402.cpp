@@ -434,8 +434,25 @@ bool HLKLD2402Component::set_parameter_(uint16_t param_id, uint32_t value) {
     sprintf(hex_buf + (i*3), "%02X ", response[i]);
   }
   ESP_LOGD(TAG, "Set parameter response: %s", hex_buf);
-    
-  // Accept any response for now - we're having issues with response validation
+  
+  // Do basic error checking without being too strict on validation
+  if (response.size() < 2) {
+    ESP_LOGE(TAG, "Response too short");
+    return false;
+  }
+  
+  // Check for known error patterns
+  bool has_error = false;
+  if (response[0] == 0xFF && response[1] == 0xFF) {
+    has_error = true;  // This typically indicates an error
+  }
+  
+  if (has_error) {
+    ESP_LOGE(TAG, "Parameter setting failed with error response");
+    return false;
+  }
+  
+  // For other responses, be permissive and assume success
   return true;
 }
 
