@@ -14,27 +14,30 @@ static const uint8_t FRAME_HEADER[] = {0xFD, 0xFC, 0xFB, 0xFA};
 static const uint8_t FRAME_FOOTER[] = {0x04, 0x03, 0x02, 0x01};
 
 // Commands
+static const uint16_t CMD_GET_VERSION = 0x0000;  // Changed from 0x0001 to 0x0000
 static const uint16_t CMD_ENABLE_CONFIG = 0x00FF;
 static const uint16_t CMD_DISABLE_CONFIG = 0x00FE;
-static const uint16_t CMD_GET_VERSION = 0x0001;
-static const uint16_t CMD_SET_PARAMS = 0x0002;
-static const uint16_t CMD_GET_PARAMS = 0x0003;
-static const uint16_t CMD_SET_MODE = 0x0004;
-static const uint16_t CMD_SAVE_PARAMS = 0x0005;
-static const uint16_t CMD_START_CALIBRATION = 0x000A;
-static const uint16_t CMD_GET_CALIBRATION_STATUS = 0x000B;
-static const uint16_t CMD_AUTO_GAIN = 0x000C;
+static const uint16_t CMD_GET_SN_HEX = 0x0016;   // Added - read SN in hex format
+static const uint16_t CMD_GET_SN_CHAR = 0x0011;  // Added - read SN in character format
+static const uint16_t CMD_GET_PARAMS = 0x0008;   // Changed from 0x0003
+static const uint16_t CMD_SET_PARAMS = 0x0007;   // Changed from 0x0002
+static const uint16_t CMD_SET_MODE = 0x0012;     // Changed from 0x0004
+static const uint16_t CMD_SAVE_PARAMS = 0x00FD;  // Changed from 0x0005
+static const uint16_t CMD_START_CALIBRATION = 0x0009;  // Changed from 0x000A
+static const uint16_t CMD_GET_CALIBRATION_STATUS = 0x000A;  // Changed from 0x000B
+static const uint16_t CMD_AUTO_GAIN = 0x00EE;    // Changed from 0x000C
+static const uint16_t CMD_AUTO_GAIN_COMPLETE = 0x00F0; // Added - auto gain completion notice
 
 // Parameters
 static const uint16_t PARAM_MAX_DISTANCE = 0x0001;
 static const uint16_t PARAM_TIMEOUT = 0x0004;
 
 // Work modes
-static const uint32_t MODE_NORMAL = 0x00000000;
+static const uint32_t MODE_NORMAL = 0x00000064;   // Changed from 0x00000000
 static const uint32_t MODE_CONFIG = 0x00000001;
+static const uint32_t MODE_ENGINEERING = 0x00000004;  // For testing
 
 // Work modes from manual
-static const uint32_t MODE_ENGINEERING = 0x00000004;  // For testing
 static const uint32_t MODE_PRODUCTION = 0x00000064;   // Normal operation
 
 // Thresholds from manual
@@ -90,6 +93,8 @@ public:
   void set_engineering_mode() {
     set_work_mode_(MODE_ENGINEERING);
   }
+  
+  void get_serial_number();
 
 protected:
   bool enter_config_mode_();
@@ -105,6 +110,11 @@ protected:
   bool write_frame_(const std::vector<uint8_t> &frame);  // New method
   void get_firmware_version_();  // Add the missing function declaration
   void begin_passive_version_detection_();  // New method for passive detection
+  
+  bool save_configuration_();
+  bool enable_auto_gain_();
+  bool get_serial_number_hex_();
+  bool get_serial_number_char_();
 
   // Convert dB value to raw threshold
   uint32_t db_to_threshold_(float db_value);
@@ -129,6 +139,7 @@ private:
   bool power_interference_detected_{false};
   uint32_t last_calibration_status_{0};
   bool calibration_in_progress_{false};
+  std::string serial_number_; // Add field to store serial number
 };
 
 }  // namespace hlk_ld2402

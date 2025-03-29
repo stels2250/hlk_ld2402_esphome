@@ -57,7 +57,7 @@ void HLKLD2402Component::begin_passive_version_detection_() {
   firmware_version_ = "HLK-LD2402"; // Default fallback version
 }
 
-// Add new function to get firmware version
+// Update get_firmware_version_ method to use correct command and parsing
 void HLKLD2402Component::get_firmware_version_() {
   ESP_LOGI(TAG, "Retrieving firmware version...");
   
@@ -68,120 +68,72 @@ void HLKLD2402Component::get_firmware_version_() {
     read_byte(&c);
   }
   
-  // First try detecting version directly from normal mode output
-  uint32_t start_time = millis();
-  std::string output_buffer;
-  bool found_version = false;
-  
-  ESP_LOGI(TAG, "Reading normal output data for 3 seconds...");
-  while ((millis() - start_time) < 3000) {
-    if (available()) {
-      uint8_t c;
-      read_byte(&c);
-      
-      // Only collect printable characters 
-      if (c >= 32 && c < 127) {
-        output_buffer += (char)c;
-      } else if (c == '\n' || c == '\r') {
-        // Check if this line contains anything that looks like version info
-        if (!output_buffer.empty()) {
-          ESP_LOGD(TAG, "Examining line: %s", output_buffer.c_str());
-          
-          // Look for version patterns like "v1.2.3" or just "1.2.3"
-          for (size_t i = 0; i < output_buffer.length(); i++) {
-            if ((output_buffer[i] == 'v' || output_buffer[i] == 'V') && 
-                i+1 < output_buffer.length() && isdigit(output_buffer[i+1])) {
-              // Found v followed by a digit, likely a version
-              std::string version = output_buffer.substr(i);
-              firmware_version_ = version;
-              found_version = true;
-              ESP_LOGI(TAG, "Found version string: %s", version.c_str());
-              break;
-            }
-            else if (i+2 < output_buffer.length() && 
-                    isdigit(output_buffer[i]) && 
-                    output_buffer[i+1] == '.' && 
-                    isdigit(output_buffer[i+2])) {
-              // Found a numeric version pattern
-              std::string version = "v" + output_buffer.substr(i, output_buffer.find_first_not_of("0123456789.", i) - i);
-              firmware_version_ = version;
-              found_version = true;
-              ESP_LOGI(TAG, "Found version number: %s", version.c_str());
-              break;
-            }
-          }
-        }
-        output_buffer.clear();
-      }
-      
-      if (found_version) break;
-    }
-    yield();
-  }
-  
-  if (found_version) {
-    if (firmware_version_text_sensor_ != nullptr) {
-      firmware_version_text_sensor_->publish_state(firmware_version_);
-      ESP_LOGI(TAG, "Published firmware version from normal output: %s", firmware_version_.c_str());
-    }
-    return;
-  }
-  
-  // If no version found in normal output, enter config mode and use the correct command
-  ESP_LOGI(TAG, "No version in normal output, entering config mode...");
   bool entered_config_mode = false;
   
   if (!config_mode_) {
     if (!enter_config_mode_()) {
       ESP_LOGW(TAG, "Failed to enter config mode for firmware version check");
+      if (firmware_version_text_sensor_ != nullptr) {
+        firmware_version_text_sensor_->publish_state("Unknown - Config Failed");
+      }
       return;
     }
     entered_config_mode = true;
   }
   
-  // According to the protocol docs, command 0x0001 is the firmware version command
-  if (!send_command_(CMD_GET_VERSION)) {
-    ESP_LOGW(TAG, "Failed to send version command");
-  } else {
-    // Wait for response with a longer delay - may need to be adjusted per documentation
-    delay(300);  // Adjust based on protocol documentation timing requirements
+  // Per protocol spec 5.2.1 - use command 0x0000 for firmware version
+  if (send_command_(CMD_GET_VERSION)) {
+    delay(300);
     
     std::vector<uint8_t> response;
     if (read_response_(response, 1000)) {
-      if (response.size() > 0) {
-        char version[32];
+      // According to the protocol, response format: 
+      // version_length (2 bytes) + version_string (N bytes)
+      if (response.size() >= 2) {
+        uint16_t version_length = response[0] | (response[1] << 8);
         
-        // Format according to protocol documentation - adjust this based on actual format
-        if (response.size() >= 3) {
-          sprintf(version, "v%d.%d.%d", response[0], response[1], response[2]);
-        } else if (response.size() == 2) {
-          sprintf(version, "v%d.%d", response[0], response[1]);
+        if (response.size() >= 2 + version_length && version_length > 0) {
+          std::string version;
+          // Extract version string
+          for (size_t i = 2; i < 2 + version_length; i++) {
+            version += (char)response[i];
+          }
+          
+          firmware_version_ = version;
+          ESP_LOGI(TAG, "Got firmware version: %s", version.c_str());
+          
+          if (firmware_version_text_sensor_ != nullptr) {
+            firmware_version_text_sensor_->publish_state(version);
+            ESP_LOGI(TAG, "Published firmware version: %s", version.c_str());
+          }
         } else {
-          sprintf(version, "v%d", response[0]);
+          ESP_LOGW(TAG, "Invalid version string length in response");
+          if (firmware_version_text_sensor_ != nullptr) {
+            firmware_version_text_sensor_->publish_state("Invalid Response");
+          }
         }
-        
-        firmware_version_ = version;
-        ESP_LOGI(TAG, "Got firmware version: %s", version);
-        
+      } else {
+        ESP_LOGW(TAG, "Response too short for version data");
         if (firmware_version_text_sensor_ != nullptr) {
-          firmware_version_text_sensor_->publish_state(version);
+          firmware_version_text_sensor_->publish_state("Invalid Response Format");
         }
       }
+    } else {
+      ESP_LOGW(TAG, "No response to version command");
+      if (firmware_version_text_sensor_ != nullptr) {
+        firmware_version_text_sensor_->publish_state("No Response");
+      }
     }
-  }
-
-  // Exit config mode if we entered it
-  if (entered_config_mode) {
-    ESP_LOGI(TAG, "Exiting config mode safely");
-    exit_config_mode_();
+  } else {
+    ESP_LOGW(TAG, "Failed to send version command");
+    if (firmware_version_text_sensor_ != nullptr) {
+      firmware_version_text_sensor_->publish_state("Command Failed");
+    }
   }
   
-  // If we still don't have a version, use the model name as fallback
-  if (firmware_version_.empty() || firmware_version_ == "Unknown") {
-    firmware_version_ = "HLK-LD2402";
-    if (firmware_version_text_sensor_ != nullptr) {
-      firmware_version_text_sensor_->publish_state(firmware_version_);
-    }
+  // Exit config mode if we entered it
+  if (entered_config_mode) {
+    exit_config_mode_();
   }
 }
 
@@ -651,6 +603,7 @@ bool HLKLD2402Component::set_work_mode_(uint32_t mode) {
   return false;
 }
 
+// Update calibration to match new command format
 void HLKLD2402Component::calibrate() {
   ESP_LOGI(TAG, "Starting calibration...");
   
@@ -659,6 +612,8 @@ void HLKLD2402Component::calibrate() {
     return;
   }
   
+  // According to section 5.2.9 in the documentation
+  // Default threshold coefficient is 3.0 (0x001E when multiplied by 10)
   uint8_t data[] = {
     0x1E, 0x00,  // Trigger threshold coefficient (3.0)
     0x1E, 0x00,  // Hold threshold coefficient (3.0)
@@ -673,6 +628,8 @@ void HLKLD2402Component::calibrate() {
       if (send_command_(CMD_GET_CALIBRATION_STATUS)) {
         std::vector<uint8_t> response;
         if (read_response_(response) && response.size() >= 4) {
+          // Per protocol section 5.2.10, response format:
+          // 2 bytes ACK status + 2 bytes percentage
           uint16_t progress = response[2] | (response[3] << 8);
           ESP_LOGI(TAG, "Calibration progress: %u%%", progress);
           if (progress == 100)
@@ -686,6 +643,7 @@ void HLKLD2402Component::calibrate() {
   exit_config_mode_();
 }
 
+// Update save_config method to use correct command per documentation section 5.3
 void HLKLD2402Component::save_config() {
   ESP_LOGI(TAG, "Saving configuration...");
   
@@ -693,21 +651,39 @@ void HLKLD2402Component::save_config() {
     ESP_LOGE(TAG, "Failed to enter config mode");
     return;
   }
-    
-  if (send_command_(CMD_SAVE_PARAMS)) {
-    std::vector<uint8_t> response;
-    if (read_response_(response) && response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
-      ESP_LOGI(TAG, "Configuration saved successfully");
-    } else {
-      ESP_LOGE(TAG, "Failed to save configuration");
-    }
+  
+  if (save_configuration_()) {
+    ESP_LOGI(TAG, "Configuration saved successfully");
   } else {
-    ESP_LOGE(TAG, "Failed to send save command");
+    ESP_LOGE(TAG, "Failed to save configuration");
   }
   
   exit_config_mode_();
 }
 
+bool HLKLD2402Component::save_configuration_() {
+  ESP_LOGI(TAG, "Sending save configuration command...");
+  
+  if (!send_command_(CMD_SAVE_PARAMS)) {
+    ESP_LOGE(TAG, "Failed to send save command");
+    return false;
+  }
+  
+  std::vector<uint8_t> response;
+  if (!read_response_(response)) {
+    ESP_LOGE(TAG, "No response to save command");
+    return false;
+  }
+  
+  // Per protocol doc 5.3, check ACK status
+  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Update enable_auto_gain to use correct commands per documentation section 5.4
 void HLKLD2402Component::enable_auto_gain() {
   ESP_LOGI(TAG, "Enabling auto gain...");
   
@@ -715,35 +691,147 @@ void HLKLD2402Component::enable_auto_gain() {
     ESP_LOGE(TAG, "Failed to enter config mode");
     return;
   }
-    
-  if (send_command_(CMD_AUTO_GAIN)) {
-    std::vector<uint8_t> response;
-    if (read_response_(response) && response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
-      ESP_LOGI(TAG, "Auto gain enabled");
-      
-      // Wait for completion response (0xF0 command)
-      uint32_t start = millis();
-      while ((millis() - start) < 5000) {  // 5 second timeout
-        if (available()) {
-          std::vector<uint8_t> completion;
-          if (read_response_(completion) && 
-              completion.size() >= 4 && 
-              completion[0] == 0xF0 && 
-              completion[1] == 0x00) {
-            ESP_LOGI(TAG, "Auto gain completed successfully");
-            break;
-          }
+  
+  if (!enable_auto_gain_()) {
+    ESP_LOGE(TAG, "Failed to enable auto gain");
+    exit_config_mode_();
+    return;
+  }
+  
+  // Wait for completion command response (0xF0 command)
+  ESP_LOGI(TAG, "Waiting for auto gain completion...");
+  uint32_t start = millis();
+  bool completion_received = false;
+  
+  // Use a longer timeout as auto gain may take time to complete
+  while ((millis() - start) < 10000) { // 10 second timeout
+    if (available() >= 12) { // Minimum expected frame size
+      std::vector<uint8_t> response;
+      if (read_response_(response)) {
+        if (response.size() >= 2 && response[0] == 0xF0 && response[1] == 0x00) {
+          ESP_LOGI(TAG, "Auto gain adjustment completed");
+          completion_received = true;
+          break;
         }
-        delay(100);
       }
-    } else {
-      ESP_LOGE(TAG, "Failed to enable auto gain");
     }
-  } else {
-    ESP_LOGE(TAG, "Failed to send auto gain command");
+    delay(100);
+  }
+  
+  if (!completion_received) {
+    ESP_LOGW(TAG, "Auto gain completion notification not received within timeout");
   }
   
   exit_config_mode_();
+}
+
+bool HLKLD2402Component::enable_auto_gain_() {
+  if (!send_command_(CMD_AUTO_GAIN)) {
+    ESP_LOGE(TAG, "Failed to send auto gain command");
+    return false;
+  }
+  
+  std::vector<uint8_t> response;
+  if (!read_response_(response)) {
+    ESP_LOGE(TAG, "No response to auto gain command");
+    return false;
+  }
+  
+  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+    ESP_LOGI(TAG, "Auto gain command acknowledged");
+    return true;
+  }
+  
+  ESP_LOGE(TAG, "Invalid response to auto gain command");
+  return false;
+}
+
+// Add serial number retrieval methods
+void HLKLD2402Component::get_serial_number() {
+  ESP_LOGI(TAG, "Getting serial number...");
+  
+  if (!enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode");
+    return;
+  }
+  
+  // Try HEX format first (newer firmware)
+  if (!get_serial_number_hex_()) {
+    // If that fails, try character format
+    if (!get_serial_number_char_()) {
+      ESP_LOGE(TAG, "Failed to get serial number");
+    }
+  }
+  
+  exit_config_mode_();
+}
+
+bool HLKLD2402Component::get_serial_number_hex_() {
+  if (!send_command_(CMD_GET_SN_HEX)) {
+    ESP_LOGE(TAG, "Failed to send hex SN command");
+    return false;
+  }
+  
+  std::vector<uint8_t> response;
+  if (!read_response_(response)) {
+    ESP_LOGE(TAG, "No response to hex SN command");
+    return false;
+  }
+  
+  // Per protocol section 5.2.4, response format:
+  // 2 bytes ACK + 2 bytes length + N bytes SN
+  if (response.size() >= 4 && response[0] == 0x00 && response[1] == 0x00) {
+    uint16_t sn_length = response[2] | (response[3] << 8);
+    
+    if (response.size() >= 4 + sn_length) {
+      // Format as hex string
+      std::string sn;
+      char temp[8];
+      for (size_t i = 4; i < 4 + sn_length; i++) {
+        sprintf(temp, "%02X", response[i]);
+        sn += temp;
+      }
+      
+      serial_number_ = sn;
+      ESP_LOGI(TAG, "Serial number (hex): %s", sn.c_str());
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+bool HLKLD2402Component::get_serial_number_char_() {
+  if (!send_command_(CMD_GET_SN_CHAR)) {
+    ESP_LOGE(TAG, "Failed to send char SN command");
+    return false;
+  }
+  
+  std::vector<uint8_t> response;
+  if (!read_response_(response)) {
+    ESP_LOGE(TAG, "No response to char SN command");
+    return false;
+  }
+  
+  // Per protocol section 5.2.5, response format:
+  // 2 bytes ACK + 2 bytes length + N bytes SN
+  if (response.size() >= 4 && response[0] == 0x00 && response[1] == 0x00) {
+    uint16_t sn_length = response[2] | (response[3] << 8);
+    
+    if (response.size() >= 4 + sn_length) {
+      // Format as character string
+      std::string sn;
+      for (size_t i = 4; i < 4 + sn_length; i++) {
+        sn += (char)response[i];
+      }
+      
+      serial_number_ = sn;
+      ESP_LOGI(TAG, "Serial number (char): %s", sn.c_str());
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 void HLKLD2402Component::check_power_interference() {
