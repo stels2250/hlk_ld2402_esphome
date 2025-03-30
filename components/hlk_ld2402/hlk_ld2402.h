@@ -103,6 +103,25 @@ public:
     }
   }
   
+  // Add threshold sensor setters
+  void set_motion_threshold_sensor(uint8_t gate_index, sensor::Sensor *threshold_sensor) {
+    if (gate_index < MAX_GATES) {
+      if (motion_threshold_sensors_.size() <= gate_index) {
+        motion_threshold_sensors_.resize(gate_index + 1, nullptr);
+      }
+      motion_threshold_sensors_[gate_index] = threshold_sensor;
+    }
+  }
+  
+  void set_micromotion_threshold_sensor(uint8_t gate_index, sensor::Sensor *threshold_sensor) {
+    if (gate_index < MAX_GATES) {
+      if (micromotion_threshold_sensors_.size() <= gate_index) {
+        micromotion_threshold_sensors_.resize(gate_index + 1, nullptr);
+      }
+      micromotion_threshold_sensors_[gate_index] = threshold_sensor;
+    }
+  }
+  
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -212,6 +231,14 @@ private:
   uint32_t distance_throttle_ms_{2000}; // Default throttle of 2 seconds
   std::vector<sensor::Sensor *> energy_gate_sensors_; // Store gate sensors
   bool engineering_data_enabled_{false}; // Flag to enable engineering data processing
+  
+  // Add storage for threshold sensors
+  std::vector<sensor::Sensor *> motion_threshold_sensors_;
+  std::vector<sensor::Sensor *> micromotion_threshold_sensors_;
+  
+  // Add cache for threshold values
+  std::vector<float> motion_threshold_values_;
+  std::vector<float> micromotion_threshold_values_;
 };
 
 }  // namespace hlk_ld2402

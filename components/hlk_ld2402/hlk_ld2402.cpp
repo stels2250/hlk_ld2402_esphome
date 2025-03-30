@@ -711,7 +711,7 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
   
   // Always log engineering frames at INFO level for debugging
   char hex_buf[128] = {0};
-  for (size_t i = 0; i < std::min(frame_data.size(), size_t(40)); i++) {
+  for (size_t i = 0; std::min(frame_data.size(), size_t(40)); i++) {
     sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
   }
   ESP_LOGI(TAG, "Engineering frame received: %s", hex_buf);
@@ -2055,9 +2055,24 @@ bool HLKLD2402Component::get_all_motion_thresholds() {
   
   if (success) {
     ESP_LOGI(TAG, "Motion thresholds for all gates:");
+    
+    // Resize the cache vector if needed
+    if (motion_threshold_values_.size() < values.size()) {
+      motion_threshold_values_.resize(values.size(), 0);
+    }
+    
+    // Process and publish each value
     for (size_t i = 0; i < values.size() && i < 16; i++) {
       float db_value = threshold_to_db_(values[i]);
+      motion_threshold_values_[i] = db_value;
+      
       ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, values[i], db_value);
+      
+      // Publish to sensor if available
+      if (i < motion_threshold_sensors_.size() && motion_threshold_sensors_[i] != nullptr) {
+        motion_threshold_sensors_[i]->publish_state(db_value);
+        ESP_LOGI(TAG, "Published motion threshold for gate %d: %.1f dB", i, db_value);
+      }
     }
   }
   
@@ -2085,9 +2100,24 @@ bool HLKLD2402Component::get_all_micromotion_thresholds() {
   
   if (success) {
     ESP_LOGI(TAG, "Micromotion thresholds for all gates:");
+    
+    // Resize the cache vector if needed
+    if (micromotion_threshold_values_.size() < values.size()) {
+      micromotion_threshold_values_.resize(values.size(), 0);
+    }
+    
+    // Process and publish each value
     for (size_t i = 0; i < values.size() && i < 16; i++) {
       float db_value = threshold_to_db_(values[i]);
+      micromotion_threshold_values_[i] = db_value;
+      
       ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, values[i], db_value);
+      
+      // Publish to sensor if available
+      if (i < micromotion_threshold_sensors_.size() && micromotion_threshold_sensors_[i] != nullptr) {
+        micromotion_threshold_sensors_[i]->publish_state(db_value);
+        ESP_LOGI(TAG, "Published micromotion threshold for gate %d: %.1f dB", i, db_value);
+      }
     }
   }
   

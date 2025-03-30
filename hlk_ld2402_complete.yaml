@@ -151,6 +151,52 @@ sensor:
     energy_gate:
       gate_index: 13
 
+  # NEW: Motion threshold sensors for gates 0 and 1
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_0
+    name: "Gate 0 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 0
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_1
+    name: "Gate 1 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 1
+  
+  # NEW: Micromotion threshold sensors for gates 0 and 1
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_0
+    name: "Gate 0 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 0
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_1
+    name: "Gate 1 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 1
+
 # Text sensors
 text_sensor:
   - platform: hlk_ld2402
@@ -209,6 +255,21 @@ button:
             id(hold_coefficient).state,
             id(micromotion_coefficient).state
           );
+
+  # NEW: Buttons to read threshold values
+  - platform: template
+    name: "Read Motion Thresholds"
+    icon: "mdi:refresh"
+    entity_category: diagnostic
+    on_press:
+      - lambda: id(radar_sensor).read_motion_thresholds();
+      
+  - platform: template
+    name: "Read Micromotion Thresholds"
+    icon: "mdi:refresh"
+    entity_category: diagnostic
+    on_press:
+      - lambda: id(radar_sensor).read_micromotion_thresholds();
 
 # Add sliders for calibration coefficients and gate thresholds - all sliders must be in number section
 number:
