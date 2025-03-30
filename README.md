@@ -190,8 +190,13 @@ sensor:
 
 1. Configure the energy gate sensors you want to monitor
 2. Press the "Engineering Mode Toggle" button to switch to engineering mode
-3. Energy values will be reported in dB for each configured gate
-4. Use the values to debug sensitivity issues or optimize placement
+3. **Important**: The module must remain in config mode while in engineering mode to receive gate data
+4. When engineering mode is active, you should see log messages confirming receipt of engineering frames
+5. Energy values will be reported in dB for each configured gate
+6. To exit engineering mode, press the "Engineering Mode Toggle" button again
+7. Use the values to debug sensitivity issues or optimize placement
+
+**Note**: After enabling engineering mode, it may take a few seconds for data to start flowing. If no data appears after 30 seconds, try pressing the "Engineering Mode Toggle" button again to reset the mode.
 
 ## Interpreting Energy Values
 
@@ -216,13 +221,13 @@ The component exposes services to adjust thresholds:
 
 ```yaml
 # Set motion threshold for a specific gate
-- service: esphome.radar_sensor_set_motion_threshold
+- service: esphome.hlk_ld2402_set_motion_threshold
   data:
     gate: 0  # Gate index (0-15)
     db_value: 45.0  # Threshold in dB (0-95)
 
 # Set micromotion threshold for a specific gate
-- service: esphome.radar_sensor_set_micromotion_threshold
+- service: esphome.hlk_ld2402_set_micromotion_threshold
   data:
     gate: 0  # Gate index (0-15)
     db_value: 40.0  # Threshold in dB (0-95)
@@ -234,7 +239,7 @@ You can also use calibration with custom coefficients:
 
 ```yaml
 # Calibrate with custom sensitivity coefficients
-- service: esphome.radar_sensor_calibrate_with_coefficients
+- service: esphome.hlk_ld2402_calibrate_with_coefficients
   data:
     trigger_coefficient: 3.5  # Motion trigger coefficient (1.0-20.0)
     hold_coefficient: 3.0  # Hold/presence coefficient (1.0-20.0)  

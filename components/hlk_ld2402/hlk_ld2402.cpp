@@ -167,6 +167,7 @@ void HLKLD2402Component::loop() {
   static bool firmware_check_done = false;
   static bool power_check_done = false;
   static uint32_t startup_time = millis();
+  static uint32_t last_eng_debug_time = 0;
   
   // Firmware version check earlier at 20 seconds to avoid conflict with power check
   if (!firmware_check_done && (millis() - startup_time) > 20000) {
@@ -203,6 +204,13 @@ void HLKLD2402Component::loop() {
     }
     byte_count = 0;
     last_status_time = millis();
+  }
+  
+  // Add this at the beginning of the loop method
+  if (operating_mode_ == "Engineering" && (millis() - last_eng_debug_time) > 5000) {
+    ESP_LOGI(TAG, "Currently in engineering mode, waiting for data frames. Data enabled: %s, Sensors configured: %d",
+             engineering_data_enabled_ ? "YES" : "NO", energy_gate_sensors_.size());
+    last_eng_debug_time = millis();
   }
   
   while (available()) {
@@ -629,8 +637,13 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
 // Add new method to process engineering data
 bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &frame_data) {
   // Early exit if engineering data processing is not enabled
-  if (!engineering_data_enabled_ || energy_gate_sensors_.empty()) {
-    ESP_LOGD(TAG, "Engineering data processing disabled or no sensors configured");
+  if (!engineering_data_enabled_) {
+    ESP_LOGD(TAG, "Engineering data processing disabled");
+    return false;
+  }
+  
+  if (energy_gate_sensors_.empty()) {
+    ESP_LOGD(TAG, "No energy gate sensors configured");
     return false;
   }
   
@@ -1098,9 +1111,18 @@ void HLKLD2402Component::set_engineering_mode() {
     return;
   }
   
+  // Disable data processing temporarily to ensure clean state
+  engineering_data_enabled_ = false;
+
   ESP_LOGI(TAG, "Switching to engineering mode...");
   
-  // First enter config mode - most commands require this
+  // First ensure we're not in config mode already
+  if (config_mode_) {
+    exit_config_mode_();
+    delay(200);
+  }
+  
+  // Then enter config mode fresh
   if (!enter_config_mode_()) {
     ESP_LOGE(TAG, "Failed to enter config mode for engineering mode");
     return;
@@ -1177,9 +1199,17 @@ void HLKLD2402Component::set_engineering_mode() {
       read_byte(&c);
     }
     
-    // Enable receiving engineering data
+    // Enable receiving engineering data AFTER cleaning up
     engineering_data_enabled_ = true;
     ESP_LOGI(TAG, "Engineering mode activated and data reception enabled. Waiting for data frames...");
+    
+    // List all configured energy gate sensors
+    ESP_LOGI(TAG, "Configured energy gate sensors (%d):", energy_gate_sensors_.size());
+    for (size_t i = 0; i < energy_gate_sensors_.size(); i++) {
+      if (energy_gate_sensors_[i] != nullptr) {
+        ESP_LOGI(TAG, "  Gate %d: sensor configured", i);
+      }
+    }
   } else {
     ESP_LOGE(TAG, "Engineering mode command failed: Unexpected response");
     exit_config_mode_();
