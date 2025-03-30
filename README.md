@@ -2,9 +2,24 @@
 
 This component integrates the HLK-LD2402 24GHz radar module with ESPHome, providing presence detection, micromovement sensing, and distance measurement.
 
+## Table of Contents
+- [Module Overview](#module-overview)
+- [ESPHome Integration Features](#esphome-integration-features)
+- [Installation](#installation)
+- [Configuration Options](#configuration-options)
+  - [Complete Configuration](#complete-configuration)
+  - [Minimal Configuration](#minimal-configuration)
+- [Available Sensors](#available-sensors)
+- [Control Functions](#control-functions)
+- [Calibration Guide](#calibration-guide)
+- [Threshold Management](#threshold-management)
+- [Engineering Mode](#engineering-mode)
+- [Common Issues & Solutions](#common-issues--solutions)
+- [Technical Reference](#technical-reference)
+
 ## Module Overview
 
-The HLK-LD2402 is a 24GHz millimeter-wave radar sensor from Hi-Link that can detect human presence, motion, and micromotion. It's particularly useful for IoT applications where accurate presence detection is required even when subjects are stationary.
+The HLK-LD2402 is a 24GHz millimeter-wave radar sensor from Hi-Link that can detect human presence, motion, and micromovement. It's particularly useful for IoT applications where accurate presence detection is required even when subjects are stationary.
 
 ### Key Features from Technical Documentation
 
@@ -25,16 +40,39 @@ The HLK-LD2402 is a 24GHz millimeter-wave radar sensor from Hi-Link that can det
 
 ## ESPHome Integration Features
 
-- **Sensor Integration**:
-  - Distance sensor (cm)
-  - Presence binary sensor
-  - Micromovement binary sensor
+- **Core Sensors**:
+  - Distance sensor (cm) - Measures distance to detected person
+  - Presence binary sensor - Detects human presence (motion + stationary)
+  - Micromovement binary sensor - Detects subtle movements like breathing
+  - Power interference binary sensor - Monitors power supply quality
+
+- **Diagnostic Sensors**:
+  - Energy gate sensors (15 gates) - Show raw signal strength at different distances
+  - Motion threshold sensors - Display configured motion sensitivity by distance gate
+  - Micromotion threshold sensors - Display configured micromotion sensitivity
+  - Calibration progress sensor - Shows percentage completion during calibration
+  - Firmware version text sensor - Displays device firmware version
+  - Operating mode text sensor - Shows current operating mode (normal/engineering/config)
 
 - **Control Features**:
-  - Calibration button to optimize detection thresholds
-  - Auto-gain function to adjust sensitivity
-  - Configuration saving capability
-  - Engineering mode for advanced testing
+  - Calibration - Automatically optimizes detection thresholds
+  - Auto-gain function - Adjusts signal amplification for environment
+  - Configuration saving - Persists settings to radar module's flash memory
+  - Engineering mode - Enables advanced testing and raw signal monitoring
+  - Gate threshold management - Fine-tune detection sensitivity for each distance gate
+  - Custom calibration - Generate thresholds with adjustable sensitivity multipliers
+  - Settings reset - Restore factory default configuration
+
+- **Modes of Operation**:
+  - Normal mode - Standard presence detection
+  - Engineering mode - Detailed signal and threshold analysis
+  - Configuration mode - Parameter adjustment and calibration
+
+- **Configuration Options**:
+  - Maximum detection distance
+  - Target disappearance timeout
+  - Individual threshold adjustment for all 15 distance gates
+  - Calibration sensitivity multipliers
 
 ## Installation
 
@@ -47,219 +85,188 @@ The HLK-LD2402 is a 24GHz millimeter-wave radar sensor from Hi-Link that can det
        refresh: 0ms
    ```
 
-2. Configure the component with the example YAML below
+2. Configure the component with one of the example YAML files below
+   - Use `hlk_ld2402_complete.yaml` for setup and calibration
+   - Use `hlk_ld2402_minimal.yaml` for everyday operation after calibration
 
-3. Flash your ESP device with the configuration
+3. Flash your ESP device with the chosen configuration
 
-## Common Pitfalls and Solutions
+## Configuration Options
 
-- **Power Interference**: The radar module performs a power supply check during startup. Ensure you use a clean, stable power source.
+### Complete Configuration
+The complete configuration (`hlk_ld2402_complete.yaml`) includes all available sensors, diagnostic tools, and calibration controls. This is recommended when:
+- First setting up the device
+- Calibrating the radar
+- Fine-tuning detection thresholds
+- Troubleshooting detection issues
 
-- **Detection Issues**: 
-  - For ceiling mount: Maximum effective detection range is reduced compared to wall mount
-  - Ensure no metal objects are placed between the sensor and detection area
-  - The module cannot detect through metal surfaces
+### Minimal Configuration
+After your device is properly calibrated and configured, switch to the minimal configuration (`hlk_ld2402_minimal.yaml`) which includes only:
+- Distance sensor
+- Presence detection
+- Micromovement detection
+- Power interference detection
+- Basic calibration button
+- Save configuration button
 
-- **Calibration Requirements**:
-  - Perform calibration in an empty room with no movement
-  - Allow 10-15 seconds for the calibration process to complete
+This streamlined configuration reduces memory usage, improves responsiveness, and presents a cleaner UI for everyday use.
 
-- **Installation Considerations**:
-  - Wall mounting: Install at 1.5-2.0m height for optimal results
-  - Ceiling mounting: Install at 2.7-3.0m height
-  - Avoid installing near moving objects like fans or curtains
+## Available Sensors
 
-- **Sensor Orientation**:
-  - For static detection, the sensor should face the subject directly
-  - The Y-axis of the sensor should point toward the detection area
+### Binary Sensors
 
-## Example YAML Configuration
+| Sensor | Description | Usage |
+|--------|-------------|-------|
+| Presence | Detects human presence (motion + static presence) | Primary detection sensor for occupancy |
+| Micromovement | Detects subtle movements (breathing, typing) | Useful for detecting stationary people |
+| Power Interference | Monitors power supply quality | Helps diagnose detection issues |
 
-```yaml
-# UART configuration for HLK-LD2402
-uart:
-  id: uart_bus
-  tx_pin: GPIO1  # TX0 hardware UART
-  rx_pin: GPIO3  # RX0 hardware UART
-  baud_rate: 115200
-  data_bits: 8
-  parity: NONE
-  stop_bits: 1
+### Distance Sensor
 
-# HLK-LD2402 radar component
-external_components:
-  - source:
-      type: git
-      url: https://github.com/mouldybread/hlk_ld2402_esphome
-    refresh: 0ms
+Measures the distance to the detected person in centimeters (accuracy: ±15cm). Range varies by detection mode:
+- Motion detection: 0-10m
+- Micromovement detection: 0-6m 
+- Static presence detection: 0-5m
 
-hlk_ld2402:
-  uart_id: uart_bus
-  id: radar_sensor
-  max_distance: 5.0
-  timeout: 5
+### Diagnostic Sensors
 
-# Binary sensors
-binary_sensor:
-  - platform: hlk_ld2402
-    id: radar_presence
-    name: "Presence"
-    device_class: presence
-    hlk_ld2402_id: radar_sensor
+Available in complete configuration for troubleshooting:
 
-  - platform: hlk_ld2402
-    id: radar_micromovement
-    name: "Micromovement"
-    device_class: motion
-    hlk_ld2402_id: radar_sensor
+#### Energy Gate Sensors
+Display raw signal strength at different distances, useful for:
+- Visualizing detection range and sensitivity
+- Identifying false detection sources
+- Troubleshooting detection issues
 
-# Distance sensor
-sensor:
-  - platform: hlk_ld2402
-    id: radar_distance
-    name: "Distance"
-    hlk_ld2402_id: radar_sensor
-    device_class: distance
-    unit_of_measurement: "cm"
-    accuracy_decimals: 1
-    filters:
-      - throttle: 2s
+#### Threshold Sensors
+Show the configured threshold values for each gate:
+- Motion thresholds: Controls sensitivity for large movements
+- Micromotion thresholds: Controls sensitivity for subtle movements
 
-# Control buttons - using template buttons 
-button:
-  - platform: template
-    name: "Calibrate"
-    on_press:
-      - lambda: id(radar_sensor).calibrate();
+### Text Sensors
 
-  - platform: template
-    name: "Auto Gain"
-    on_press:
-      - lambda: id(radar_sensor).enable_auto_gain();
+| Sensor | Description | Usage |
+|--------|-------------|-------|
+| Firmware Version | Displays the radar module's firmware | Useful for compatibility troubleshooting |
+| Operating Mode | Shows current mode (Normal/Engineering/Config) | Indicates radar operating status |
 
-  - platform: template
-    name: "Save Config"
-    on_press:
-      - lambda: id(radar_sensor).save_config();
+## Control Functions
 
-  - platform: template
-    name: "Engineering Mode"
-    on_press:
-      - lambda: id(radar_sensor).set_engineering_mode();
+### Basic Controls
 
-# Optional - Add status LED if available
-status_led:
-  pin: GPIO2
-```
-# Engineering Mode and Energy Gates
+| Button | Function | When to Use |
+|--------|----------|-------------|
+| Calibrate | Auto-calibrates based on environment | After installation or environment changes |
+| Auto Gain | Adjusts signal amplification | When experiencing poor detection range |
+| Save Config | Stores settings to radar's flash memory | After changing any settings |
+| Reset Settings | Restores default detection thresholds | When detection becomes unreliable |
 
-## Understanding Radar Gates
+### Advanced Controls
 
-The HLK-LD2402 divides its detection range into multiple "gates" (distance segments):
+| Control | Function | Usage |
+|---------|----------|-------|
+| Generate Thresholds with Sensitivity Inputs | Creates custom threshold settings | Fine-tuning detection sensitivity |
+| Set Engineering Mode | Enables detailed signal data | Troubleshooting and advanced configuration |
+| Set Normal Mode | Returns to standard operation | After completing engineering diagnostics |
+| Read Motion/Micromotion Thresholds | Updates threshold display values | When thresholds appear outdated |
 
-- Each gate is approximately 0.7m in length
-- The full 10m range is covered by 14 gates (0-13)
-- Energy levels at each gate are used to determine presence detection
+### Sensitivity Settings
 
-## Energy Gate Sensors
+| Setting | Description | Recommended Range |
+|---------|-------------|-------------------|
+| Trigger Multiplier | Controls initial motion detection | 2.0-5.0 (higher = less sensitive) |
+| Hold Multiplier | Controls presence retention | 2.0-4.0 (higher = shorter retention) |
+| Micromotion Multiplier | Controls small motion sensitivity | 3.0-6.0 (higher = less sensitive) |
 
-In engineering mode, you can access the raw energy levels from each gate. These are valuable for:
+## Calibration Guide
 
-- Tuning detection sensitivity 
-- Diagnosing interference issues
-- Visualizing radar performance
+### When to Calibrate
+- After initial installation
+- When changing the radar's mounting position
+- After significant changes to the room layout
+- If experiencing false detections or missed detections
 
-## Adding Energy Gate Sensors
+### Calibration Procedure
+1. Ensure the room is empty of people and moving objects
+2. Press "Calibrate" button
+3. Wait for calibration to complete (10-15 seconds)
+4. Press "Save Config" to store calibration permanently
 
-Add energy gate sensors to your configuration:
+### Advanced Calibration
+For environments with special requirements:
+1. Adjust the sensitivity multipliers based on your needs:
+   - Lower values (1.0-2.0): Higher sensitivity, good for large rooms
+   - Medium values (2.0-4.0): Balanced detection, suitable for most rooms
+   - Higher values (4.0+): Lower sensitivity, reduces false positives
+2. Press "Generate Thresholds with Sensitivity Inputs"
+3. Wait for completion
+4. Press "Save Config"
 
-```yaml
-sensor:
-  - platform: hlk_ld2402
-    name: "Radar Energy Gate 0"
-    hlk_ld2402_id: radar_sensor
-    state_class: measurement
-    unit_of_measurement: "dB"
-    icon: "mdi:antenna"
-    entity_category: diagnostic
-    energy_gate:
-      gate_index: 0  # First gate (0-0.7m)
-```
+## Threshold Management
 
-## Using Engineering Mode
+Each distance "gate" (0.7m segment) has independent threshold settings for:
+- Motion detection (larger movements)
+- Micromotion detection (subtle movements)
 
-1. Configure the energy gate sensors you want to monitor
-2. Press the "Engineering Mode Toggle" button to switch to engineering mode
-3. **Important**: The module must remain in config mode while in engineering mode to receive gate data
-4. When engineering mode is active, you should see log messages confirming receipt of engineering frames
-5. Energy values will be reported in dB for each configured gate
-6. To exit engineering mode, press the "Engineering Mode Toggle" button again
-7. Use the values to debug sensitivity issues or optimize placement
+### Threshold Adjustment
+You can modify individual gate thresholds:
+1. Switch to complete configuration
+2. Adjust the slider for the specific gate and type (motion/micromotion)
+3. Press "Save Config" to store changes
 
-**Note**: After enabling engineering mode, it may take a few seconds for data to start flowing. If no data appears after 30 seconds, try pressing the "Engineering Mode Toggle" button again to reset the mode.
+### Recommended Threshold Values
+- Motion thresholds: 40-60 dB (lower = more sensitive)
+- Micromotion thresholds: 35-50 dB (lower = more sensitive)
+- Gates farther from the sensor typically need lower thresholds
 
-## Interpreting Energy Values
+## Engineering Mode
 
-- Higher dB values indicate stronger reflections
-- Values typically range from 0-60 dB depending on the environment
-- Human presence usually causes a noticeable elevation in energy levels
-- Each gate has separate thresholds for motion and micromovement detection
+Engineering mode provides direct access to raw radar data for advanced troubleshooting and calibration.
 
-## Adjusting Detection Thresholds
+### Using Engineering Mode
+1. Press "Set Engineering Mode"
+2. View real-time energy values for each distance gate
+3. The readings show reflected signal strength in dB
+4. Higher values indicate stronger reflections (potential detection)
+5. Return to normal mode by pressing "Set Normal Mode"
 
-The HLK-LD2402 uses threshold values per distance gate to determine motion and micromovement detection. 
-You can adjust these thresholds for fine-tuning the sensor's sensitivity.
+### Interpreting Energy Values
+- Background noise: Typically 10-25 dB
+- Human presence: Usually causes 10-30 dB increase above background
+- Values consistently above threshold trigger detection
+- Compare energy values to threshold values to understand detection behavior
 
-### Threshold Types
+## Common Issues & Solutions
 
-1. **Motion Thresholds**: Control when movement is detected (gates 0-15)
-2. **Micromotion Thresholds**: Control when micromovement (slight motion) is detected (gates 0-15)
+### No Detection / Poor Range
+- **Check power supply** - The module requires clean 3.3V or 5V power
+- **Run Auto Gain** - Adjusts amplification for your environment
+- **Lower thresholds** for affected gates
+- **Verify installation height** - Should be 1.5-2.0m for wall mount, 2.7-3.0m for ceiling
 
-### Setting Thresholds via Services
+### False Detections
+- **Recalibrate** with room empty
+- **Increase thresholds** for problematic gates
+- **Check for moving objects** (curtains, plants near vents)
+- **Check for electronic interference** - Keep away from Wi-Fi routers, motors
 
-The component exposes services to adjust thresholds:
+### Detection Stops After Motion
+- **Check timeout setting** - Increase if detection drops too quickly
+- **Verify micromotion thresholds** - Lower for better static detection
 
-```yaml
-# Set motion threshold for a specific gate
-- service: esphome.hlk_ld2402_set_motion_threshold
-  data:
-    gate: 0  # Gate index (0-15)
-    db_value: 45.0  # Threshold in dB (0-95)
+### Power Interference Warnings
+- **Use a clean power supply** - Linear power supply or good quality LDO
+- **Add capacitors** to power input (100μF + 0.1μF recommended)
+- **Separate power supply** from noisy components (motors, relays)
 
-# Set micromotion threshold for a specific gate
-- service: esphome.hlk_ld2402_set_micromotion_threshold
-  data:
-    gate: 0  # Gate index (0-15)
-    db_value: 40.0  # Threshold in dB (0-95)
-```
+### Configuration Doesn't Save
+- **Ensure Save Config completes** successfully
+- **Check logs for error messages**
+- **Reset the module** if persisting
 
-### Automatic Threshold Generation
+## Technical Reference
 
-You can also use calibration with custom coefficients:
-
-```yaml
-# Calibrate with custom sensitivity coefficients
-- service: esphome.hlk_ld2402_calibrate_with_coefficients
-  data:
-    trigger_coefficient: 3.5  # Motion trigger coefficient (1.0-20.0)
-    hold_coefficient: 3.0  # Hold/presence coefficient (1.0-20.0)  
-    micromotion_coefficient: 4.0  # Micromotion coefficient (1.0-20.0)
-```
-
-Higher coefficient values result in higher thresholds (less sensitive).
-Lower coefficient values result in lower thresholds (more sensitive).
-
-### Understanding Threshold Values
-
-The raw energy values shown in engineering mode can help you determine appropriate threshold values:
-1. Switch to engineering mode
-2. Move around the space at different distances
-3. Note the energy values for each gate
-4. Set thresholds slightly below those energy values
-
-When the energy level exceeds a threshold, the corresponding detection (motion or micromovement) is triggered.
-
-## Gate Distance Reference
+### Gate Distance Reference
 
 | Gate Index | Distance Range |
 |------------|---------------|
@@ -277,10 +284,9 @@ When the energy level exceeds a threshold, the corresponding detection (motion o
 | 11 | 7.7m - 8.4m |
 | 12 | 8.4m - 9.1m |
 | 13 | 9.1m - 9.8m |
+| 14 | 9.8m - 10.5m |
 
-## Detection Range Visualization
-
-The HLK-LD2402 has different detection capabilities depending on installation:
+### Detection Range by Installation
 
 **Wall Mount Configuration**:
 - Movement detection: up to 10m
@@ -293,6 +299,15 @@ The HLK-LD2402 has different detection capabilities depending on installation:
 - Micromovement detection: up to 4m radius
 - Static presence: up to 4m radius
 - Static lying person: up to 3m radius
+
+### Configuration Requirements
+
+For optimal performance:
+- UART TX/RX pins should be hardware UART, not software emulated
+- Baud rate must be exactly 115200, 8N1
+- Power supply should be stable 3.3V or 5V with proper regulation
+- Allow 30-60 seconds after power-up for radar module initialization
+- Mount securely to avoid vibrations that trigger false detections
 
 ## License
 

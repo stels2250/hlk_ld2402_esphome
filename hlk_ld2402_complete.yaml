@@ -608,9 +608,9 @@ button:
     on_press:
       - lambda: id(radar_sensor).set_normal_mode_direct();
       
-  # Factory reset button with warning icon
+  # Settings reset button with warning icon
   - platform: template
-    name: "Factory Reset"
+    name: "Reset Settings"  # Changed from "Factory Reset"
     icon: "mdi:factory-reset"
     on_press:
       # Add a warning log message before reset
@@ -618,7 +618,7 @@ button:
       - lambda: id(radar_sensor).factory_reset();
 
   - platform: template
-    name: "Run Calibration with Multipliers"  # More descriptive name
+    name: "Generate Thresholds with Sensitivity Inputs"  # Changed from "Run Calibration with Multipliers"
     icon: "mdi:tune-vertical-variant"
     on_press:
       - lambda: |-
@@ -710,6 +710,188 @@ number:
       - lambda: |-
           id(radar_sensor).set_gate_motion_threshold(1, id(gate_1_motion_threshold).state);
   
+  - platform: template
+    name: "Gate 2 Motion Threshold"
+    id: gate_2_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(2, id(gate_2_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 3 Motion Threshold"
+    id: gate_3_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(3, id(gate_3_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 4 Motion Threshold"
+    id: gate_4_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(4, id(gate_4_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 5 Motion Threshold"
+    id: gate_5_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(5, id(gate_5_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 6 Motion Threshold"
+    id: gate_6_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(6, id(gate_6_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 7 Motion Threshold"
+    id: gate_7_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(7, id(gate_7_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 8 Motion Threshold"
+    id: gate_8_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(8, id(gate_8_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 9 Motion Threshold"
+    id: gate_9_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(9, id(gate_9_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 10 Motion Threshold"
+    id: gate_10_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(10, id(gate_10_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 11 Motion Threshold"
+    id: gate_11_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(11, id(gate_11_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 12 Motion Threshold"
+    id: gate_12_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(12, id(gate_12_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 13 Motion Threshold"
+    id: gate_13_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(13, id(gate_13_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 14 Motion Threshold"
+    id: gate_14_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(14, id(gate_14_motion_threshold).state);
+  
   # Micromotion threshold sliders for gates
   - platform: template
     name: "Gate 0 Micromotion Threshold"
@@ -738,6 +920,188 @@ number:
     on_value:
       - lambda: |-
           id(radar_sensor).set_gate_micromotion_threshold(1, id(gate_1_micromotion_threshold).state);
+  
+  - platform: template
+    name: "Gate 2 Micromotion Threshold"
+    id: gate_2_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(2, id(gate_2_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 3 Micromotion Threshold"
+    id: gate_3_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(3, id(gate_3_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 4 Micromotion Threshold"
+    id: gate_4_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(4, id(gate_4_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 5 Micromotion Threshold"
+    id: gate_5_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(5, id(gate_5_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 6 Micromotion Threshold"
+    id: gate_6_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(6, id(gate_6_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 7 Micromotion Threshold"
+    id: gate_7_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(7, id(gate_7_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 8 Micromotion Threshold"
+    id: gate_8_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(8, id(gate_8_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 9 Micromotion Threshold"
+    id: gate_9_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(9, id(gate_9_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 10 Micromotion Threshold"
+    id: gate_10_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(10, id(gate_10_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 11 Micromotion Threshold"
+    id: gate_11_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(11, id(gate_11_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 12 Micromotion Threshold"
+    id: gate_12_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(12, id(gate_12_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 13 Micromotion Threshold"
+    id: gate_13_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(13, id(gate_13_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 14 Micromotion Threshold"
+    id: gate_14_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(14, id(gate_14_micromotion_threshold).state);
 
 # Add status LED if available
 status_led:
