@@ -47,11 +47,6 @@ static const uint32_t MODE_NORMAL = 0x00000064;  // Alias for production mode
 static const uint32_t MODE_CONFIG = 0x00000001;
 static const uint32_t MODE_ENGINEERING = 0x00000004;  // Engineering/debug mode
 
-// Thresholds from manual
-static const uint16_t PARAM_TRIGGER_THRESHOLD = 0x0010;  // Range: 0x0010-0x001F
-static const uint16_t PARAM_MICRO_THRESHOLD = 0x0030;    // Range: 0x0030-0x003F
-static const uint16_t PARAM_POWER_INTERFERENCE = 0x0005; // Power interference status
-
 // Update - Correct baud rate according to manual
 static const uint32_t UART_BAUD_RATE = 115200;
 static const uint8_t UART_STOP_BITS = 1;
