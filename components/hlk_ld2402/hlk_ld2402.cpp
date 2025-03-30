@@ -168,6 +168,9 @@ void HLKLD2402Component::loop() {
   static bool power_check_done = false;
   static uint32_t startup_time = millis();
   static uint32_t last_eng_debug_time = 0;
+  static uint32_t eng_mode_start_time = 0;
+  static uint32_t last_eng_retry_time = 0;
+  static uint8_t eng_retry_count = 0;
   
   // Firmware version check earlier at 20 seconds to avoid conflict with power check
   if (!firmware_check_done && (millis() - startup_time) > 20000) {
@@ -211,6 +214,50 @@ void HLKLD2402Component::loop() {
     ESP_LOGI(TAG, "Currently in engineering mode, waiting for data frames. Data enabled: %s, Sensors configured: %d",
              engineering_data_enabled_ ? "YES" : "NO", energy_gate_sensors_.size());
     last_eng_debug_time = millis();
+  }
+  
+  // If we're in engineering mode, monitor if we're receiving data
+  if (operating_mode_ == "Engineering") {
+    uint32_t now = millis();
+    
+    // Set the start time if not set
+    if (eng_mode_start_time == 0) {
+      eng_mode_start_time = now;
+    }
+    
+    // Check if we're getting data in engineering mode
+    if ((now - last_status_time > 10000) && byte_count == 0) {
+      // No bytes received in 10 seconds while in engineering mode
+      if (now - last_eng_retry_time > 15000 && eng_retry_count < 3) {
+        // Try re-triggering engineering mode data every 15 seconds, up to 3 times
+        ESP_LOGW(TAG, "No data received in engineering mode - attempting to re-trigger data flow (attempt %d/3)", 
+                eng_retry_count + 1);
+        
+        // Send a parameter read command which might trigger data flow
+        uint8_t param_data[2];
+        param_data[0] = 0x01;  // Max distance parameter
+        param_data[1] = 0x00;
+        send_command_(CMD_GET_PARAMS, param_data, sizeof(param_data));
+        
+        // Increment retry counter and update timestamp
+        eng_retry_count++;
+        last_eng_retry_time = now;
+      }
+      else if (eng_retry_count >= 3 && now - eng_mode_start_time > 60000) {
+        // If we've been in engineering mode for over a minute with no data after 3 retries
+        ESP_LOGW(TAG, "Engineering mode not producing data frames after multiple retries. Try power cycling the device.");
+      }
+    }
+    else if (byte_count > 0) {
+      // Reset retry counter if we got data
+      eng_retry_count = 0;
+    }
+  }
+  else {
+    // Reset engineering mode tracking variables when not in engineering mode
+    eng_mode_start_time = 0;
+    eng_retry_count = 0;
+    last_eng_retry_time = 0;
   }
   
   while (available()) {
@@ -1189,6 +1236,23 @@ void HLKLD2402Component::set_engineering_mode() {
     ESP_LOGI(TAG, "Entering engineering data monitoring mode. Remaining in config mode.");
     config_mode_ = true;
     
+    // ADDED: Try to send an additional command to trigger data streaming
+    // This is a guess based on documentation behavior - send a "read parameter" command
+    // which might help kickstart the data flow
+    ESP_LOGI(TAG, "Sending additional commands to trigger data streaming...");
+    
+    // Try reading parameter 0x0001 (max distance) which should be harmless
+    uint8_t param_data[2];
+    param_data[0] = 0x01;  // Parameter ID 0x0001 (max distance)
+    param_data[1] = 0x00;
+    
+    if (send_command_(CMD_GET_PARAMS, param_data, sizeof(param_data))) {
+      delay(100);
+      std::vector<uint8_t> trigger_response;
+      read_response_(trigger_response, 500);
+      ESP_LOGI(TAG, "Sent trigger command");
+    }
+    
     // 6. Add a delay to give the device time to start sending engineering data
     delay(500);
     
@@ -1210,6 +1274,23 @@ void HLKLD2402Component::set_engineering_mode() {
         ESP_LOGI(TAG, "  Gate %d: sensor configured", i);
       }
     }
+    
+    // ADDED: Send additional commands to start data flow
+    // Try a few different commands to see if any trigger data streaming
+    delay(100);
+    ESP_LOGI(TAG, "Sending additional trigger commands...");
+    
+    // Option 1: Try sending a dummy parameter write (but don't actually change anything)
+    // Read max distance first
+    uint32_t max_dist_value = 50;  // Default to 5.0m if read fails
+    if (get_parameter_(PARAM_MAX_DISTANCE, max_dist_value)) {
+      // Now write back the same value
+      set_parameter_(PARAM_MAX_DISTANCE, max_dist_value);
+    }
+    
+    // Option 2: Send a no-op command that might trigger frame output
+    send_command_(CMD_GET_VERSION);
+    delay(100);
   } else {
     ESP_LOGE(TAG, "Engineering mode command failed: Unexpected response");
     exit_config_mode_();
