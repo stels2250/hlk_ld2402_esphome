@@ -1977,5 +1977,123 @@ bool HLKLD2402Component::set_micromotion_threshold(uint8_t gate, float db_value)
   return success;
 }
 
+// Add a new method for batch parameter reading
+bool HLKLD2402Component::get_parameters_batch_(const std::vector<uint16_t> &param_ids, std::vector<uint32_t> &values) {
+  ESP_LOGI(TAG, "Reading %d parameters in batch mode", param_ids.size());
+  
+  // Prepare data: length of IDs array (2 bytes) followed by param IDs
+  std::vector<uint8_t> data;
+  uint16_t count = param_ids.size();
+  data.push_back(count & 0xFF);
+  data.push_back((count >> 8) & 0xFF);
+  
+  for (uint16_t id : param_ids) {
+    data.push_back(id & 0xFF);
+    data.push_back((id >> 8) & 0xFF);
+  }
+  
+  if (!send_command_(CMD_GET_PARAMS, data.data(), data.size())) {
+    ESP_LOGE(TAG, "Failed to send batch parameter query");
+    return false;
+  }
+  
+  // Wait for response
+  delay(200);
+  
+  std::vector<uint8_t> response;
+  if (!read_response_(response, 2000)) {
+    ESP_LOGE(TAG, "No response to batch parameter query");
+    return false;
+  }
+  
+  // Log the response
+  char hex_buf[128] = {0};
+  for (size_t i = 0; i < response.size() && i < 30; i++) {
+    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+  }
+  ESP_LOGI(TAG, "Batch parameter response: %s", hex_buf);
+  
+  // Based on the serial capture, each 4-byte value is returned sequentially
+  // The format should match what we saw in the capture
+  if (response.size() >= param_ids.size() * 4) {
+    values.clear();
+    
+    for (size_t i = 0; i < param_ids.size(); i++) {
+      size_t offset = i * 4;
+      uint32_t value = response[offset] | 
+                      (response[offset+1] << 8) | 
+                      (response[offset+2] << 16) | 
+                      (response[offset+3] << 24);
+      
+      values.push_back(value);
+      ESP_LOGI(TAG, "Parameter 0x%04X value: %u (0x%08X)", param_ids[i], value, value);
+    }
+    return true;
+  }
+  
+  ESP_LOGE(TAG, "Invalid batch parameter response format or insufficient data");
+  return false;
+}
+
+// Method to read all motion thresholds in one call
+bool HLKLD2402Component::get_all_motion_thresholds() {
+  ESP_LOGI(TAG, "Reading all motion thresholds");
+  
+  if (!enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode for reading thresholds");
+    return false;
+  }
+  
+  // Prepare parameter IDs for motion threshold gates (0x0010 to 0x001F)
+  std::vector<uint16_t> param_ids;
+  for (uint16_t i = 0; i < 16; i++) {
+    param_ids.push_back(PARAM_TRIGGER_THRESHOLD + i);
+  }
+  
+  std::vector<uint32_t> values;
+  bool success = get_parameters_batch_(param_ids, values);
+  
+  if (success) {
+    ESP_LOGI(TAG, "Motion thresholds for all gates:");
+    for (size_t i = 0; i < values.size() && i < 16; i++) {
+      float db_value = threshold_to_db_(values[i]);
+      ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, values[i], db_value);
+    }
+  }
+  
+  exit_config_mode_();
+  return success;
+}
+
+// Method to read all micromotion thresholds in one call
+bool HLKLD2402Component::get_all_micromotion_thresholds() {
+  ESP_LOGI(TAG, "Reading all micromotion thresholds");
+  
+  if (!enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode for reading thresholds");
+    return false;
+  }
+  
+  // Prepare parameter IDs for micromotion threshold gates (0x0030 to 0x003F)
+  std::vector<uint16_t> param_ids;
+  for (uint16_t i = 0; i < 16; i++) {
+    param_ids.push_back(PARAM_MICRO_THRESHOLD + i);
+  }
+  
+  std::vector<uint32_t> values;
+  bool success = get_parameters_batch_(param_ids, values);
+  
+  if (success) {
+    ESP_LOGI(TAG, "Micromotion thresholds for all gates:");
+    for (size_t i = 0; i < values.size() && i < 16; i++) {
+      float db_value = threshold_to_db_(values[i]);
+      ESP_LOGI(TAG, "  Gate %d: %u (%.1f dB)", i, values[i], db_value);
+    }
+  }
+  
+  exit_config_mode_();
+  return success;
+}
+
 }  // namespace hlk_ld2402
 }  // namespace esphome

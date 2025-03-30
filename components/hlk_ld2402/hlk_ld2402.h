@@ -136,6 +136,19 @@ public:
     set_micromotion_threshold(gate, db_value);
   }
 
+  // Add new method declarations for batch parameter operations
+  bool get_all_motion_thresholds();
+  bool get_all_micromotion_thresholds();
+  
+  // Service to read thresholds
+  void read_motion_thresholds() {
+    get_all_motion_thresholds();
+  }
+  
+  void read_micromotion_thresholds() {
+    get_all_micromotion_thresholds();
+  }
+
 protected:
   bool enter_config_mode_();
   bool enter_config_mode_quick_();  // New quick entry method
@@ -166,6 +179,9 @@ protected:
   bool process_distance_frame_(const std::vector<uint8_t> &frame_data);
   bool process_engineering_data_(const std::vector<uint8_t> &frame_data);
   void update_binary_sensors_(float distance_cm);  // New helper method
+
+  // Batch parameter reading method
+  bool get_parameters_batch_(const std::vector<uint16_t> &param_ids, std::vector<uint32_t> &values);
 
 private:
   // According to manual, response timeout should be 1s
