@@ -201,16 +201,19 @@ void HLKLD2402Component::loop() {
   static uint32_t eng_mode_start_time = 0;
   static uint32_t last_eng_retry_time = 0;
   static uint8_t eng_retry_count = 0;
+  static uint32_t firmware_check_time = 0;  // New variable to track when firmware check completes
   
   // Firmware version check earlier at 20 seconds to avoid conflict with power check
   if (!firmware_check_done && (millis() - startup_time) > 20000) {
     ESP_LOGI(TAG, "Performing firmware version check...");
     get_firmware_version_();
     firmware_check_done = true;
+    firmware_check_time = millis();  // Record when firmware check completes
   }
   
-  // Power interference check at 60 seconds after boot
-  if (firmware_check_done && !power_check_done && (millis() - startup_time) > 60000) {
+  // Power interference check 3 seconds after firmware check completes
+  if (firmware_check_done && !power_check_done && 
+      firmware_check_time > 0 && (millis() - firmware_check_time) > 3000) {
     ESP_LOGI(TAG, "Performing power interference check...");
     check_power_interference();
     power_check_done = true;
@@ -857,7 +860,7 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
   if (!throttled) {
     // Only log the frame when not throttled
     char hex_buf[128] = {0};
-    for (size_t i = 0; std::min(frame_data.size(), size_t(40)); i++) {
+    for (size_t i = 0; i < std::min(frame_data.size(), size_t(40)); i++) {
       sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
     }
     ESP_LOGI(TAG, "Engineering frame received: %s", hex_buf);
