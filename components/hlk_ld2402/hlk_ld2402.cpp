@@ -290,6 +290,12 @@ void HLKLD2402Component::loop() {
     last_eng_retry_time = 0;
   }
   
+  // Add this at the beginning of the loop method for additional safety
+  if (operating_mode_ != "Engineering" && engineering_data_enabled_) {
+    ESP_LOGI(TAG, "Detected inconsistent state: engineering data enabled but not in engineering mode. Fixing...");
+    engineering_data_enabled_ = false;
+  }
+  
   while (available()) {
     uint8_t c;
     read_byte(&c);
@@ -757,7 +763,7 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
   // For 0x83 frames in engineering mode, the energy values start at byte 13
   // Energy values are the same values that would be "distance" in normal mode
   const size_t motion_energy_start = 13;  // Start offset for energy values
-  const size_t motion_gate_count = 15;    // Use 15 gates as mentioned by the user
+  const size_t motion_gate_count = DEFAULT_GATES;    // Should use DEFAULT_GATES for consistency
   
   // Ensure we have enough data
   if (frame_data.size() < motion_energy_start + 4) {
@@ -848,7 +854,7 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
 
   // Process each gate's energy value
   const size_t motion_energy_start = 10;
-  const size_t motion_gate_count = DEFAULT_GATES; // Use 14 gates as determined earlier
+  const size_t motion_gate_count = DEFAULT_GATES; // Uses 14 gates from the constant
   
   for (uint8_t i = 0; i < motion_gate_count; i++) {
     size_t offset = motion_energy_start + (i * 4);
@@ -1372,6 +1378,9 @@ void HLKLD2402Component::set_engineering_mode() {
 void HLKLD2402Component::set_normal_mode() {
   ESP_LOGI(TAG, "Switching to normal mode...");
   
+  // IMPORTANT: Disable engineering data processing flag when returning to normal mode
+  engineering_data_enabled_ = false;
+  
   // Enter config mode if not already in it
   if (!config_mode_ && !enter_config_mode_()) {
     ESP_LOGE(TAG, "Failed to enter config mode for normal mode");
@@ -1384,6 +1393,13 @@ void HLKLD2402Component::set_normal_mode() {
     
     // Always exit config mode when going to normal mode
     exit_config_mode_();
+    
+    // Clear any remaining data to ensure clean transition
+    flush();
+    while (available()) {
+      uint8_t c;
+      read_byte(&c);
+    }
   } else {
     ESP_LOGE(TAG, "Failed to set normal mode");
     // Still try to exit config mode

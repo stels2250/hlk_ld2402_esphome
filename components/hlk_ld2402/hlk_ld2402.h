@@ -61,7 +61,7 @@ static constexpr float STATIC_RANGE = 5.0f;            // Max 5m for static dete
 static constexpr float DISTANCE_PRECISION = 0.15f;     // ±0.15m accuracy
 static constexpr float DISTANCE_GATE_SIZE = 0.7f;      // 0.7m per gate
 static const uint8_t MAX_GATES = 32;                   // Hardware maximum gates
-static const uint8_t DEFAULT_GATES = 14;               // Default number of gates (covers ~9.8m)
+static const uint8_t DEFAULT_GATES = 15;               // Update to 15 to match your configuration
 
 // Add calibration coefficients
 static const uint8_t DEFAULT_COEFF = 0x1E;  // Default coefficient (3.0)

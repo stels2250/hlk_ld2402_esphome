@@ -26,7 +26,7 @@ CONFIG_SCHEMA = sensor.sensor_schema().extend({
     cv.Optional(CONF_THROTTLE): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_CALIBRATION_PROGRESS, default=False): cv.boolean,
     cv.Optional(CONF_ENERGY_GATE): cv.Schema({
-        cv.Required(CONF_GATE_INDEX): cv.int_range(0, 13),
+        cv.Required(CONF_GATE_INDEX): cv.int_range(0, 14),  # Should be (0, 14) for 15 gates
     }),
     cv.Optional(CONF_MOTION_THRESHOLD): cv.Schema({
         cv.Required(CONF_GATE_INDEX): cv.int_range(0, 15),
