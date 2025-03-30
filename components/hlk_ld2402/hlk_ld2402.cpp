@@ -2281,5 +2281,62 @@ bool HLKLD2402Component::get_all_micromotion_thresholds() {
   return success;
 }
 
+// Update calibration to match new command format and improve progress tracking
+void HLKLD2402Component::calibrate() {
+  calibrate_with_coefficients(3.0f, 3.0f, 3.0f);
+}
+
+// Update calibration to match new command format and improve progress tracking
+bool HLKLD2402Component::calibrate_with_coefficients(float trigger_coeff, float hold_coeff, float micromotion_coeff) {
+  ESP_LOGI(TAG, "Starting calibration with custom coefficients...");
+  
+  if (!enter_config_mode_()) {
+    ESP_LOGE(TAG, "Failed to enter config mode");
+    return false;
+  }
+  
+  // Clamp coefficients to valid range (1.0 - 20.0)
+  trigger_coeff = std::max(MIN_COEFF, std::min(MAX_COEFF, trigger_coeff));
+  hold_coeff = std::max(MIN_COEFF, std::min(MAX_COEFF, hold_coeff));
+  micromotion_coeff = std::max(MIN_COEFF, std::min(MAX_COEFF, micromotion_coeff));
+  
+  // According to section 5.2.9, each coefficient is multiplied by 10
+  uint16_t trigger_value = static_cast<uint16_t>(trigger_coeff * 10.0f);
+  uint16_t hold_value = static_cast<uint16_t>(hold_coeff * 10.0f);
+  uint16_t micro_value = static_cast<uint16_t>(micromotion_coeff * 10.0f);
+  
+  // Prepare data according to the protocol: 3 coefficients, each 2 bytes
+  uint8_t data[] = {
+    static_cast<uint8_t>(trigger_value & 0xFF),
+    static_cast<uint8_t>((trigger_value >> 8) & 0xFF),
+    static_cast<uint8_t>(hold_value & 0xFF),
+    static_cast<uint8_t>((hold_value >> 8) & 0xFF),
+    static_cast<uint8_t>(micro_value & 0xFF),
+    static_cast<uint8_t>((micro_value >> 8) & 0xFF)
+  };
+  
+  ESP_LOGI(TAG, "Calibration coefficients - Trigger: %.1f, Hold: %.1f, Micro: %.1f", 
+         trigger_coeff, hold_coeff, micromotion_coeff);
+  
+  if (send_command_(CMD_START_CALIBRATION, data, sizeof(data))) {
+    ESP_LOGI(TAG, "Started calibration with custom coefficients");
+    
+    // Set calibration flags and initialize progress
+    calibration_in_progress_ = true;
+    calibration_progress_ = 0;
+    last_calibration_check_ = millis() - 4000; // Check status almost immediately
+    
+    // Publish initial progress
+    if (this->calibration_progress_sensor_ != nullptr) {
+      this->calibration_progress_sensor_->publish_state(0);
+    }
+    return true;
+  } else {
+    ESP_LOGE(TAG, "Failed to start calibration");
+    exit_config_mode_();
+    return false;
+  }
+}
+
 }  // namespace hlk_ld2402
 }  // namespace esphome
