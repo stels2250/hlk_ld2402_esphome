@@ -1477,44 +1477,91 @@ void HLKLD2402Component::save_config() {
 bool HLKLD2402Component::save_configuration_() {
   ESP_LOGI(TAG, "Sending save configuration command...");
   
+  // Clear any pending data first to ensure a clean state
+  flush();
+  while (available()) {
+    uint8_t c;
+    read_byte(&c);
+  }
+  
+  // Send the save command with explicit flush
   if (!send_command_(CMD_SAVE_PARAMS)) {
     ESP_LOGE(TAG, "Failed to send save command");
     return false;
   }
   
-  // Add a longer delay after sending the command - the device needs time to process
-  // According to the documentation, we need to wait for the device to process the save command
-  delay(500);
+  // IMPORTANT: Add a longer delay after sending the save command
+  // The device needs more time to process flash operations
+  delay(1000);  // Increase from 500ms to 1000ms
   
   std::vector<uint8_t> response;
-  if (!read_response_(response, 2000)) {  // Use a longer 2 second timeout
-    ESP_LOGI(TAG, "No immediate response to save command - this may be normal for some firmware versions");
-    // According to the documentation, a successful save command should receive a response
-    // but some firmware might not respond reliably
-    return true;
+  if (!read_response_(response, 3000)) {  // Increase timeout to 3 seconds
+    ESP_LOGW(TAG, "No response to save command - this may indicate a firmware issue");
+    
+    // Retry with a direct send after a delay
+    delay(500);
+    if (!send_command_(CMD_SAVE_PARAMS)) {
+      ESP_LOGE(TAG, "Failed to send retry save command");
+      return false;
+    }
+    
+    // Try reading the response again after a longer delay
+    delay(1500);
+    if (!read_response_(response, 3000)) {
+      ESP_LOGE(TAG, "No response to retry save command");
+      return false;
+    }
   }
   
-  // Log the response for debugging
-  char hex_buf[64] = {0};
-  for (size_t i = 0; i < response.size() && i < 16; i++) {
+  // Log the complete response for debugging
+  char hex_buf[128] = {0};
+  for (size_t i = 0; i < response.size() && i < 32; i++) {
     sprintf(hex_buf + (i*3), "%02X ", response[i]);
   }
   ESP_LOGI(TAG, "Save config response: %s", hex_buf);
   
-  // As per section 5.3 in the documentation, check for standard ACK
+  // Based on logs and protocol documentation, handle various response patterns:
+  
+  // Case 1: Standard ACK (00 00) as per documentation section 5.3
   if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
     ESP_LOGI(TAG, "Save configuration acknowledged with standard ACK");
+    
+    // Add a safety delay to ensure flash write completes
+    delay(500);
     return true;
   }
   
-  // Additional permissive checks to handle non-standard responses
+  // Case 2: Actual device response format seen in logs
+  // Format: [04 00][FD 01][00 00] - command echo pattern
+  if (response.size() >= 6 &&
+      response[0] == 0x04 && response[1] == 0x00 &&
+      response[2] == 0xFD && 
+      response[4] == 0x00 && response[5] == 0x00) {
+    
+    ESP_LOGI(TAG, "Save configuration acknowledged with device-specific format");
+    
+    // Add longer safety delay to ensure flash write completes
+    delay(1000);
+    return true;
+  }
+  
+  // Case 3: Any other non-empty response (more permissive for future firmware updates)
   if (response.size() >= 2) {
-    ESP_LOGW(TAG, "Non-standard save response, but continuing anyway");
+    ESP_LOGW(TAG, "Received non-standard save response format but continuing");
+    
+    // Log detailed bytes for diagnostics
+    ESP_LOGD(TAG, "Response details (first 6 bytes):");
+    for (size_t i = 0; i < std::min(response.size(), size_t(6)); i++) {
+      ESP_LOGD(TAG, "  Byte[%d] = 0x%02X", i, response[i]);
+    }
+    
+    // Add a very conservative delay to ensure flash operations complete
+    delay(1500);
     return true;
   }
   
-  ESP_LOGW(TAG, "Unknown save configuration response format, but continuing");
-  return true;
+  ESP_LOGW(TAG, "Unrecognized save configuration response format");
+  return false;
 }
 
 // Update enable_auto_gain to use correct commands per documentation section 5.4

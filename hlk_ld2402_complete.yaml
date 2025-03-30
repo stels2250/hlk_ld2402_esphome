@@ -618,7 +618,7 @@ button:
       - lambda: id(radar_sensor).factory_reset();
 
   - platform: template
-    name: "Apply Calibration Coefficients"
+    name: "Run Calibration with Multipliers"  # More descriptive name
     icon: "mdi:tune-vertical-variant"
     on_press:
       - lambda: |-
@@ -646,7 +646,7 @@ button:
 # Add sliders for calibration coefficients and gate thresholds - all sliders must be in number section
 number:
   - platform: template
-    name: "Trigger Coefficient"
+    name: "Calibration: Trigger Multiplier"  # Updated name to clarify purposeurpose
     id: trigger_coefficient
     optimistic: true
     min_value: 1.0
@@ -655,9 +655,10 @@ number:
     initial_value: 3.5
     icon: "mdi:tune-vertical"
     unit_of_measurement: "x"
+    entity_category: config  # Add this to indicate it's a configuration parameter
     
   - platform: template
-    name: "Hold Coefficient"
+    name: "Calibration: Hold Multiplier"  # Updated named name
     id: hold_coefficient
     optimistic: true
     min_value: 1.0
@@ -666,9 +667,10 @@ number:
     initial_value: 3.0
     icon: "mdi:tune-vertical"
     unit_of_measurement: "x"
+    entity_category: config  # Add this to indicate it's a configuration parameter
     
   - platform: template
-    name: "Micromotion Coefficient"
+    name: "Calibration: Micromotion Multiplier"  # Updated named name
     id: micromotion_coefficient
     optimistic: true
     min_value: 1.0
@@ -677,6 +679,7 @@ number:
     initial_value: 4.0
     icon: "mdi:tune-vertical"
     unit_of_measurement: "x"
+    entity_category: config  # Add this to indicate it's a configuration parameter
 
   # Motion threshold sliders for gates
   - platform: template
