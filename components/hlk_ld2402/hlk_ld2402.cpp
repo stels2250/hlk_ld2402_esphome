@@ -362,11 +362,17 @@ void HLKLD2402Component::loop() {
           
           // Process the data frame based on frame_type with additional checks
           if (frame_type == DATA_FRAME_TYPE_DISTANCE) {
-            // ADDED SAFETY CHECK: Don't process distance frames in engineering mode
+            // MODIFICATION: If in engineering mode, process 0x83 frames as engineering data
             if (operating_mode_ == "Engineering") {
-              ESP_LOGD(TAG, "Ignoring distance frame in engineering mode");
+              ESP_LOGI(TAG, "Processing distance frame (0x83) as engineering data in engineering mode");
+              if (process_engineering_from_distance_frame_(frame_data)) {
+                // Successfully processed as engineering data
+                ESP_LOGD(TAG, "Successfully processed 0x83 frame as engineering data");
+              } else {
+                ESP_LOGW(TAG, "Failed to process 0x83 frame as engineering data");
+              }
             } else if (process_distance_frame_(frame_data)) {
-              // Successfully processed distance frame
+              // Successfully processed as normal distance frame
             } else {
               ESP_LOGW(TAG, "Failed to process distance data frame");
             }
@@ -623,12 +629,6 @@ void HLKLD2402Component::loop() {
 
 // Add new method to parse distance data frames
 bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &frame_data) {
-  // Modified approach: If in engineering mode, process as engineering data rather than ignoring
-  if (operating_mode_ == "Engineering") {
-    ESP_LOGI(TAG, "Processing distance frame (0x83) as engineering data while in engineering mode");
-    return process_engineering_from_distance_frame_(frame_data);
-  }
-  
   // Regular distance frame processing for normal mode
   // Ensure the frame is at least the minimum expected length
   if (frame_data.size() < 10) {
@@ -747,7 +747,7 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
     return false;
   }
   
-  // Log the full frame in hex for debugging
+  // Log the frame format for debugging - this helps us understand the data structure
   char hex_buf[256] = {0};
   for (size_t i = 0; i < std::min(frame_data.size(), size_t(50)); i++) {
     sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
@@ -755,8 +755,9 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
   ESP_LOGI(TAG, "Processing 0x83 frame as engineering data: %s", hex_buf);
   
   // For 0x83 frames in engineering mode, the energy values start at byte 13
-  const size_t motion_energy_start = 13;  // Different offset than pure engineering frames
-  const size_t motion_gate_count = DEFAULT_GATES; // Use 14 gates as determined earlier
+  // Energy values are the same values that would be "distance" in normal mode
+  const size_t motion_energy_start = 13;  // Start offset for energy values
+  const size_t motion_gate_count = 15;    // Use 15 gates as mentioned by the user
   
   // Ensure we have enough data
   if (frame_data.size() < motion_energy_start + 4) {
@@ -781,8 +782,9 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
                         (frame_data[offset+3] << 24);
     
     // Convert raw energy to dB as per manual: dB = 10 * log10(raw_value)
+    // Only calculate for non-zero values to avoid log(0)
     float db_energy = 0;
-    if (raw_energy > 0) { // Avoid log10(0)
+    if (raw_energy > 0) {
       db_energy = 10.0f * log10f(raw_energy);
     }
     
@@ -794,7 +796,7 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
     if (i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
       energy_gate_sensors_[i]->publish_state(db_energy);
       
-      // Always log gate data to track what we're receiving
+      // Always log gate data at higher level for now to help debug
       ESP_LOGI(TAG, "Gate %d (%.1f-%.1f m) energy: %.1f dB (raw: %u)", 
               i, gate_start_distance, gate_end_distance, db_energy, raw_energy);
     }
