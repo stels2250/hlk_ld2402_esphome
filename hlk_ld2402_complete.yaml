@@ -51,7 +51,7 @@ sensor:
     device_class: distance
     unit_of_measurement: "cm"
     accuracy_decimals: 1
-    throttle: 2000ms  # 2 second throttle directly in the component
+    throttle: 2000ms  # Use direct parameter for throttling
     
   # Calibration progress sensor
   - platform: hlk_ld2402
@@ -66,8 +66,8 @@ sensor:
 
   # All 15 energy gate sensors (0-14)
   - platform: hlk_ld2402
-    id: radar_energy_gate_0
-    name: "Radar Energy Gate 0 (0.0-0.7m)"
+    id: radar_energy_gate_00
+    name: "Radar Energy Gate 00 (0.0-0.7m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -77,8 +77,8 @@ sensor:
       gate_index: 0
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_1
-    name: "Radar Energy Gate 1 (0.7-1.4m)"
+    id: radar_energy_gate_01
+    name: "Radar Energy Gate 01 (0.7-1.4m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -88,8 +88,8 @@ sensor:
       gate_index: 1
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_2
-    name: "Radar Energy Gate 2 (1.4-2.1m)"
+    id: radar_energy_gate_02
+    name: "Radar Energy Gate 02 (1.4-2.1m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -99,8 +99,8 @@ sensor:
       gate_index: 2
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_3
-    name: "Radar Energy Gate 3 (2.1-2.8m)"
+    id: radar_energy_gate_03
+    name: "Radar Energy Gate 03 (2.1-2.8m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -110,8 +110,8 @@ sensor:
       gate_index: 3
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_4
-    name: "Radar Energy Gate 4 (2.8-3.5m)"
+    id: radar_energy_gate_04
+    name: "Radar Energy Gate 04 (2.8-3.5m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -121,8 +121,8 @@ sensor:
       gate_index: 4
 
   - platform: hlk_ld2402
-    id: radar_energy_gate_5
-    name: "Radar Energy Gate 5 (3.5-4.2m)"
+    id: radar_energy_gate_05
+    name: "Radar Energy Gate 05 (3.5-4.2m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -132,8 +132,8 @@ sensor:
       gate_index: 5
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_6
-    name: "Radar Energy Gate 6 (4.2-4.9m)"
+    id: radar_energy_gate_06
+    name: "Radar Energy Gate 06 (4.2-4.9m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -143,8 +143,8 @@ sensor:
       gate_index: 6
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_7
-    name: "Radar Energy Gate 7 (4.9-5.6m)"
+    id: radar_energy_gate_07
+    name: "Radar Energy Gate 07 (4.9-5.6m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -154,8 +154,8 @@ sensor:
       gate_index: 7
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_8
-    name: "Radar Energy Gate 8 (5.6-6.3m)"
+    id: radar_energy_gate_08
+    name: "Radar Energy Gate 08 (5.6-6.3m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -165,8 +165,8 @@ sensor:
       gate_index: 8
       
   - platform: hlk_ld2402
-    id: radar_energy_gate_9
-    name: "Radar Energy Gate 9 (6.3-7.0m)"
+    id: radar_energy_gate_09
+    name: "Radar Energy Gate 09 (6.3-7.0m)"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -232,8 +232,8 @@ sensor:
 
   # All 15 Motion threshold sensors
   - platform: hlk_ld2402
-    id: radar_motion_threshold_0
-    name: "Gate 0 Motion Threshold"
+    id: radar_motion_threshold_00
+    name: "Gate 00 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -243,8 +243,8 @@ sensor:
       gate_index: 0
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_1
-    name: "Gate 1 Motion Threshold"
+    id: radar_motion_threshold_01
+    name: "Gate 01 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -254,8 +254,8 @@ sensor:
       gate_index: 1
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_2
-    name: "Gate 2 Motion Threshold"
+    id: radar_motion_threshold_02
+    name: "Gate 02 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -265,8 +265,8 @@ sensor:
       gate_index: 2
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_3
-    name: "Gate 3 Motion Threshold"
+    id: radar_motion_threshold_03
+    name: "Gate 03 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -276,8 +276,8 @@ sensor:
       gate_index: 3
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_4
-    name: "Gate 4 Motion Threshold"
+    id: radar_motion_threshold_04
+    name: "Gate 04 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -287,8 +287,8 @@ sensor:
       gate_index: 4
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_5
-    name: "Gate 5 Motion Threshold"
+    id: radar_motion_threshold_05
+    name: "Gate 05 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -298,8 +298,8 @@ sensor:
       gate_index: 5
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_6
-    name: "Gate 6 Motion Threshold"
+    id: radar_motion_threshold_06
+    name: "Gate 06 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -309,8 +309,8 @@ sensor:
       gate_index: 6
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_7
-    name: "Gate 7 Motion Threshold"
+    id: radar_motion_threshold_07
+    name: "Gate 07 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -320,8 +320,8 @@ sensor:
       gate_index: 7
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_8
-    name: "Gate 8 Motion Threshold"
+    id: radar_motion_threshold_08
+    name: "Gate 08 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -331,8 +331,8 @@ sensor:
       gate_index: 8
       
   - platform: hlk_ld2402
-    id: radar_motion_threshold_9
-    name: "Gate 9 Motion Threshold"
+    id: radar_motion_threshold_09
+    name: "Gate 09 Motion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -398,8 +398,8 @@ sensor:
   
   # All 15 Micromotion threshold sensors
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_0
-    name: "Gate 0 Micromotion Threshold"
+    id: radar_micromotion_threshold_00
+    name: "Gate 00 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -409,8 +409,8 @@ sensor:
       gate_index: 0
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_1
-    name: "Gate 1 Micromotion Threshold"
+    id: radar_micromotion_threshold_01
+    name: "Gate 01 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -420,8 +420,8 @@ sensor:
       gate_index: 1
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_2
-    name: "Gate 2 Micromotion Threshold"
+    id: radar_micromotion_threshold_02
+    name: "Gate 02 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -431,8 +431,8 @@ sensor:
       gate_index: 2
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_3
-    name: "Gate 3 Micromotion Threshold"
+    id: radar_micromotion_threshold_03
+    name: "Gate 03 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -442,8 +442,8 @@ sensor:
       gate_index: 3
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_4
-    name: "Gate 4 Micromotion Threshold"
+    id: radar_micromotion_threshold_04
+    name: "Gate 04 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -453,8 +453,8 @@ sensor:
       gate_index: 4
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_5
-    name: "Gate 5 Micromotion Threshold"
+    id: radar_micromotion_threshold_05
+    name: "Gate 05 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -464,8 +464,8 @@ sensor:
       gate_index: 5
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_6
-    name: "Gate 6 Micromotion Threshold"
+    id: radar_micromotion_threshold_06
+    name: "Gate 06 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -475,8 +475,8 @@ sensor:
       gate_index: 6
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_7
-    name: "Gate 7 Micromotion Threshold"
+    id: radar_micromotion_threshold_07
+    name: "Gate 07 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -486,8 +486,8 @@ sensor:
       gate_index: 7
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_8
-    name: "Gate 8 Micromotion Threshold"
+    id: radar_micromotion_threshold_08
+    name: "Gate 08 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -497,8 +497,8 @@ sensor:
       gate_index: 8
       
   - platform: hlk_ld2402
-    id: radar_micromotion_threshold_9
-    name: "Gate 9 Micromotion Threshold"
+    id: radar_micromotion_threshold_09
+    name: "Gate 09 Micromotion Threshold"
     hlk_ld2402_id: radar_sensor
     state_class: measurement
     unit_of_measurement: "dB"
@@ -683,8 +683,8 @@ number:
 
   # Motion threshold sliders for gates
   - platform: template
-    name: "Gate 0 Motion Threshold"
-    id: gate_0_motion_threshold
+    name: "Gate 00 Motion Threshold"
+    id: gate_00_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -694,11 +694,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(0, id(gate_0_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(0, id(gate_00_motion_threshold).state);
   
   - platform: template
-    name: "Gate 1 Motion Threshold"
-    id: gate_1_motion_threshold
+    name: "Gate 01 Motion Threshold"
+    id: gate_01_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -708,11 +708,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(1, id(gate_1_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(1, id(gate_01_motion_threshold).state);
   
   - platform: template
-    name: "Gate 2 Motion Threshold"
-    id: gate_2_motion_threshold
+    name: "Gate 02 Motion Threshold"
+    id: gate_02_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -722,11 +722,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(2, id(gate_2_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(2, id(gate_02_motion_threshold).state);
           
   - platform: template
-    name: "Gate 3 Motion Threshold"
-    id: gate_3_motion_threshold
+    name: "Gate 03 Motion Threshold"
+    id: gate_03_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -736,11 +736,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(3, id(gate_3_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(3, id(gate_03_motion_threshold).state);
           
   - platform: template
-    name: "Gate 4 Motion Threshold"
-    id: gate_4_motion_threshold
+    name: "Gate 04 Motion Threshold"
+    id: gate_04_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -750,11 +750,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(4, id(gate_4_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(4, id(gate_04_motion_threshold).state);
           
   - platform: template
-    name: "Gate 5 Motion Threshold"
-    id: gate_5_motion_threshold
+    name: "Gate 05 Motion Threshold"
+    id: gate_05_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -764,11 +764,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(5, id(gate_5_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(5, id(gate_05_motion_threshold).state);
           
   - platform: template
-    name: "Gate 6 Motion Threshold"
-    id: gate_6_motion_threshold
+    name: "Gate 06 Motion Threshold"
+    id: gate_06_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -778,11 +778,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(6, id(gate_6_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(6, id(gate_06_motion_threshold).state);
           
   - platform: template
-    name: "Gate 7 Motion Threshold"
-    id: gate_7_motion_threshold
+    name: "Gate 07 Motion Threshold"
+    id: gate_07_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -792,11 +792,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(7, id(gate_7_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(7, id(gate_07_motion_threshold).state);
           
   - platform: template
-    name: "Gate 8 Motion Threshold"
-    id: gate_8_motion_threshold
+    name: "Gate 08 Motion Threshold"
+    id: gate_08_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -806,11 +806,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(8, id(gate_8_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(8, id(gate_08_motion_threshold).state);
           
   - platform: template
-    name: "Gate 9 Motion Threshold"
-    id: gate_9_motion_threshold
+    name: "Gate 09 Motion Threshold"
+    id: gate_09_motion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -820,7 +820,7 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_motion_threshold(9, id(gate_9_motion_threshold).state);
+          id(radar_sensor).set_gate_motion_threshold(9, id(gate_09_motion_threshold).state);
           
   - platform: template
     name: "Gate 10 Motion Threshold"
@@ -894,8 +894,8 @@ number:
   
   # Micromotion threshold sliders for gates
   - platform: template
-    name: "Gate 0 Micromotion Threshold"
-    id: gate_0_micromotion_threshold
+    name: "Gate 00 Micromotion Threshold"
+    id: gate_00_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -905,11 +905,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(0, id(gate_0_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(0, id(gate_00_micromotion_threshold).state);
   
   - platform: template
-    name: "Gate 1 Micromotion Threshold"
-    id: gate_1_micromotion_threshold
+    name: "Gate 01 Micromotion Threshold"
+    id: gate_01_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -919,11 +919,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(1, id(gate_1_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(1, id(gate_01_micromotion_threshold).state);
   
   - platform: template
-    name: "Gate 2 Micromotion Threshold"
-    id: gate_2_micromotion_threshold
+    name: "Gate 02 Micromotion Threshold"
+    id: gate_02_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -933,11 +933,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(2, id(gate_2_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(2, id(gate_02_micromotion_threshold).state);
           
   - platform: template
-    name: "Gate 3 Micromotion Threshold"
-    id: gate_3_micromotion_threshold
+    name: "Gate 03 Micromotion Threshold"
+    id: gate_03_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -947,11 +947,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(3, id(gate_3_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(3, id(gate_03_micromotion_threshold).state);
           
   - platform: template
-    name: "Gate 4 Micromotion Threshold"
-    id: gate_4_micromotion_threshold
+    name: "Gate 04 Micromotion Threshold"
+    id: gate_04_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -961,11 +961,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(4, id(gate_4_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(4, id(gate_04_micromotion_threshold).state);
           
   - platform: template
-    name: "Gate 5 Micromotion Threshold"
-    id: gate_5_micromotion_threshold
+    name: "Gate 05 Micromotion Threshold"
+    id: gate_05_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -975,11 +975,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(5, id(gate_5_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(5, id(gate_05_micromotion_threshold).state);
           
   - platform: template
-    name: "Gate 6 Micromotion Threshold"
-    id: gate_6_micromotion_threshold
+    name: "Gate 06 Micromotion Threshold"
+    id: gate_06_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -989,11 +989,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(6, id(gate_6_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(6, id(gate_06_micromotion_threshold).state);
           
   - platform: template
-    name: "Gate 7 Micromotion Threshold"
-    id: gate_7_micromotion_threshold
+    name: "Gate 07 Micromotion Threshold"
+    id: gate_07_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -1003,11 +1003,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(7, id(gate_7_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(7, id(gate_07_micromotion_threshold).state);
           
   - platform: template
-    name: "Gate 8 Micromotion Threshold"
-    id: gate_8_micromotion_threshold
+    name: "Gate 08 Micromotion Threshold"
+    id: gate_08_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -1017,11 +1017,11 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(8, id(gate_8_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(8, id(gate_08_micromotion_threshold).state);
           
   - platform: template
-    name: "Gate 9 Micromotion Threshold"
-    id: gate_9_micromotion_threshold
+    name: "Gate 09 Micromotion Threshold"
+    id: gate_09_micromotion_threshold
     optimistic: true
     min_value: 0.0
     max_value: 95.0
@@ -1031,7 +1031,7 @@ number:
     unit_of_measurement: "dB"
     on_value:
       - lambda: |-
-          id(radar_sensor).set_gate_micromotion_threshold(9, id(gate_9_micromotion_threshold).state);
+          id(radar_sensor).set_gate_micromotion_threshold(9, id(gate_09_micromotion_threshold).state);
           
   - platform: template
     name: "Gate 10 Micromotion Threshold"
