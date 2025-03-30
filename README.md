@@ -325,7 +325,7 @@ For optimal performance:
 
 ## License
 
-This ESPHome component is released under the MIT License.
+This ESPHome component is released under the  GNU GENERAL PUBLIC LICENSE Version 3.
 
 ## Credits
 
