@@ -6,21 +6,54 @@ from esphome.const import (
     DEVICE_CLASS_DISTANCE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CENTIMETER,
+    UNIT_PERCENT,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 from . import HLKLD2402Component, CONF_HLK_LD2402_ID
 
-CONFIG_SCHEMA = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CENTIMETER,
-    accuracy_decimals=1,
-    device_class=DEVICE_CLASS_DISTANCE,
-    state_class=STATE_CLASS_MEASUREMENT,
-).extend({
+CONF_THROTTLE = "throttle"
+CONF_CALIBRATION_PROGRESS = "calibration_progress"
+CONF_ENERGY_GATE = "energy_gate"  # Energy gate sensors
+CONF_GATE_INDEX = "gate_index"     # Gate number (0-13)
+CONF_MOTION_THRESHOLD = "motion_threshold"  # Motion threshold sensors
+CONF_MICROMOTION_THRESHOLD = "micromotion_threshold"  # Micromotion threshold sensors
+
+# Update schema to include threshold sensors
+CONFIG_SCHEMA = sensor.sensor_schema().extend({
     cv.GenerateID(): cv.declare_id(sensor.Sensor),
     cv.Required(CONF_HLK_LD2402_ID): cv.use_id(HLKLD2402Component),
+    cv.Optional(CONF_THROTTLE): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_CALIBRATION_PROGRESS, default=False): cv.boolean,
+    cv.Optional(CONF_ENERGY_GATE): cv.Schema({
+        cv.Required(CONF_GATE_INDEX): cv.int_range(0, 14),  # Should be (0, 14) for 15 gates
+    }),
+    cv.Optional(CONF_MOTION_THRESHOLD): cv.Schema({
+        cv.Required(CONF_GATE_INDEX): cv.int_range(0, 15),
+    }),
+    cv.Optional(CONF_MICROMOTION_THRESHOLD): cv.Schema({
+        cv.Required(CONF_GATE_INDEX): cv.int_range(0, 15),
+    }),
 })
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_HLK_LD2402_ID])
     var = await sensor.new_sensor(config)
-    cg.add(parent.set_distance_sensor(var))
+    
+    if CONF_ENERGY_GATE in config:
+        gate_index = config[CONF_ENERGY_GATE][CONF_GATE_INDEX]
+        cg.add(parent.set_energy_gate_sensor(gate_index, var))
+    elif CONF_MOTION_THRESHOLD in config:
+        gate_index = config[CONF_MOTION_THRESHOLD][CONF_GATE_INDEX]
+        cg.add(parent.set_motion_threshold_sensor(gate_index, var))
+    elif CONF_MICROMOTION_THRESHOLD in config:
+        gate_index = config[CONF_MICROMOTION_THRESHOLD][CONF_GATE_INDEX]
+        cg.add(parent.set_micromotion_threshold_sensor(gate_index, var))
+    elif config.get(CONF_CALIBRATION_PROGRESS):
+        # This is a calibration progress sensor
+        cg.add(parent.set_calibration_progress_sensor(var))
+    else:
+        # This is a regular distance sensor
+        cg.add(parent.set_distance_sensor(var))
+        if CONF_THROTTLE in config:
+            cg.add(parent.set_distance_throttle(config[CONF_THROTTLE]))

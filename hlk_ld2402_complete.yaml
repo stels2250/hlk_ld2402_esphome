@@ -34,6 +34,13 @@ binary_sensor:
     name: "Micromovement"
     device_class: motion
     hlk_ld2402_id: radar_sensor
+  
+  - platform: hlk_ld2402
+    id: radar_power_interference
+    name: "Radar Power Interference"
+    device_class: problem
+    power_interference: true
+    hlk_ld2402_id: radar_sensor
 
 # Distance sensor
 sensor:
@@ -44,10 +51,534 @@ sensor:
     device_class: distance
     unit_of_measurement: "cm"
     accuracy_decimals: 1
-    filters:
-      - throttle: 2s
+    throttle: 2000ms  # 2 second throttle directly in the component
+    
+  # Calibration progress sensor
+  - platform: hlk_ld2402
+    id: radar_calibration_progress
+    name: "Radar Calibration Progress"
+    hlk_ld2402_id: radar_sensor
+    unit_of_measurement: "%"
+    icon: "mdi:progress-wrench"
+    entity_category: diagnostic
+    state_class: measurement
+    calibration_progress: true
 
-# Control buttons - using template buttons instead of custom platform
+  # All 15 energy gate sensors (0-14)
+  - platform: hlk_ld2402
+    id: radar_energy_gate_0
+    name: "Radar Energy Gate 0 (0.0-0.7m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 0
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_1
+    name: "Radar Energy Gate 1 (0.7-1.4m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 1
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_2
+    name: "Radar Energy Gate 2 (1.4-2.1m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 2
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_3
+    name: "Radar Energy Gate 3 (2.1-2.8m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 3
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_4
+    name: "Radar Energy Gate 4 (2.8-3.5m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 4
+
+  - platform: hlk_ld2402
+    id: radar_energy_gate_5
+    name: "Radar Energy Gate 5 (3.5-4.2m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 5
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_6
+    name: "Radar Energy Gate 6 (4.2-4.9m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 6
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_7
+    name: "Radar Energy Gate 7 (4.9-5.6m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 7
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_8
+    name: "Radar Energy Gate 8 (5.6-6.3m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 8
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_9
+    name: "Radar Energy Gate 9 (6.3-7.0m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 9
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_10
+    name: "Radar Energy Gate 10 (7.0-7.7m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 10
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_11
+    name: "Radar Energy Gate 11 (7.7-8.4m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 11
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_12
+    name: "Radar Energy Gate 12 (8.4-9.1m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 12
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_13
+    name: "Radar Energy Gate 13 (9.1-9.8m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 13
+      
+  - platform: hlk_ld2402
+    id: radar_energy_gate_14
+    name: "Radar Energy Gate 14 (9.8-10.5m)"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:antenna"
+    entity_category: diagnostic
+    energy_gate:
+      gate_index: 14
+
+  # All 15 Motion threshold sensors
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_0
+    name: "Gate 0 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 0
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_1
+    name: "Gate 1 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 1
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_2
+    name: "Gate 2 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 2
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_3
+    name: "Gate 3 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 3
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_4
+    name: "Gate 4 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 4
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_5
+    name: "Gate 5 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 5
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_6
+    name: "Gate 6 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 6
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_7
+    name: "Gate 7 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 7
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_8
+    name: "Gate 8 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 8
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_9
+    name: "Gate 9 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 9
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_10
+    name: "Gate 10 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 10
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_11
+    name: "Gate 11 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 11
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_12
+    name: "Gate 12 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 12
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_13
+    name: "Gate 13 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 13
+      
+  - platform: hlk_ld2402
+    id: radar_motion_threshold_14
+    name: "Gate 14 Motion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:gauge"
+    entity_category: diagnostic
+    motion_threshold:
+      gate_index: 14
+  
+  # All 15 Micromotion threshold sensors
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_0
+    name: "Gate 0 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 0
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_1
+    name: "Gate 1 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 1
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_2
+    name: "Gate 2 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 2
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_3
+    name: "Gate 3 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 3
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_4
+    name: "Gate 4 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 4
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_5
+    name: "Gate 5 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 5
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_6
+    name: "Gate 6 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 6
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_7
+    name: "Gate 7 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 7
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_8
+    name: "Gate 8 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 8
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_9
+    name: "Gate 9 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 9
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_10
+    name: "Gate 10 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 10
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_11
+    name: "Gate 11 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 11
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_12
+    name: "Gate 12 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 12
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_13
+    name: "Gate 13 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 13
+      
+  - platform: hlk_ld2402
+    id: radar_micromotion_threshold_14
+    name: "Gate 14 Micromotion Threshold"
+    hlk_ld2402_id: radar_sensor
+    state_class: measurement
+    unit_of_measurement: "dB"
+    icon: "mdi:hand-wave"
+    entity_category: diagnostic
+    micromotion_threshold:
+      gate_index: 14
+
+# Text sensors
+text_sensor:
+  - platform: hlk_ld2402
+    id: radar_firmware_version
+    name: "Radar Firmware Version"
+    entity_category: diagnostic
+    hlk_ld2402_id: radar_sensor
+    firmware_version: true
+
+  - platform: hlk_ld2402
+    id: radar_operating_mode
+    name: "Radar Operating Mode"
+    entity_category: diagnostic
+    hlk_ld2402_id: radar_sensor
+    operating_mode: true
+
+# Control buttons - using template buttons 
 button:
   - platform: template
     name: "Calibrate"
@@ -64,10 +595,513 @@ button:
     on_press:
       - lambda: id(radar_sensor).save_config();
 
+  # Replace the toggle button with two separate mode buttons
   - platform: template
-    name: "Engineering Mode"
+    name: "Set Engineering Mode"
+    icon: "mdi:tune-variant"
     on_press:
-      - lambda: id(radar_sensor).set_engineering_mode();
+      - lambda: id(radar_sensor).set_engineering_mode_direct();
+
+  - platform: template
+    name: "Set Normal Mode" 
+    icon: "mdi:tune-variant-off"
+    on_press:
+      - lambda: id(radar_sensor).set_normal_mode_direct();
+      
+  # Settings reset button with warning icon
+  - platform: template
+    name: "Reset Settings"  # Changed from "Factory Reset"
+    icon: "mdi:factory-reset"
+    on_press:
+      # Add a warning log message before reset
+      - logger.log: "WARNING: Performing factory reset on radar module"
+      - lambda: id(radar_sensor).factory_reset();
+
+  - platform: template
+    name: "Generate Thresholds with Sensitivity Inputs"  # Changed from "Run Calibration with Multipliers"
+    icon: "mdi:tune-vertical-variant"
+    on_press:
+      - lambda: |-
+          id(radar_sensor).calibrate_with_coefficients(
+            id(trigger_coefficient).state,
+            id(hold_coefficient).state,
+            id(micromotion_coefficient).state
+          );
+
+  # NEW: Buttons to read threshold values
+  - platform: template
+    name: "Read Motion Thresholds"
+    icon: "mdi:refresh"
+    entity_category: diagnostic
+    on_press:
+      - lambda: id(radar_sensor).read_motion_thresholds();
+      
+  - platform: template
+    name: "Read Micromotion Thresholds"
+    icon: "mdi:refresh"
+    entity_category: diagnostic
+    on_press:
+      - lambda: id(radar_sensor).read_micromotion_thresholds();
+
+# Add sliders for calibration coefficients and gate thresholds - all sliders must be in number section
+number:
+  - platform: template
+    name: "Calibration: Trigger Multiplier"  # Updated name to clarify purposeurpose
+    id: trigger_coefficient
+    optimistic: true
+    min_value: 1.0
+    max_value: 20.0
+    step: 0.1
+    initial_value: 3.5
+    icon: "mdi:tune-vertical"
+    unit_of_measurement: "x"
+    entity_category: config  # Add this to indicate it's a configuration parameter
+    
+  - platform: template
+    name: "Calibration: Hold Multiplier"  # Updated named name
+    id: hold_coefficient
+    optimistic: true
+    min_value: 1.0
+    max_value: 20.0
+    step: 0.1
+    initial_value: 3.0
+    icon: "mdi:tune-vertical"
+    unit_of_measurement: "x"
+    entity_category: config  # Add this to indicate it's a configuration parameter
+    
+  - platform: template
+    name: "Calibration: Micromotion Multiplier"  # Updated named name
+    id: micromotion_coefficient
+    optimistic: true
+    min_value: 1.0
+    max_value: 20.0
+    step: 0.1
+    initial_value: 4.0
+    icon: "mdi:tune-vertical"
+    unit_of_measurement: "x"
+    entity_category: config  # Add this to indicate it's a configuration parameter
+
+  # Motion threshold sliders for gates
+  - platform: template
+    name: "Gate 0 Motion Threshold"
+    id: gate_0_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(0, id(gate_0_motion_threshold).state);
+  
+  - platform: template
+    name: "Gate 1 Motion Threshold"
+    id: gate_1_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(1, id(gate_1_motion_threshold).state);
+  
+  - platform: template
+    name: "Gate 2 Motion Threshold"
+    id: gate_2_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(2, id(gate_2_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 3 Motion Threshold"
+    id: gate_3_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(3, id(gate_3_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 4 Motion Threshold"
+    id: gate_4_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(4, id(gate_4_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 5 Motion Threshold"
+    id: gate_5_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(5, id(gate_5_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 6 Motion Threshold"
+    id: gate_6_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(6, id(gate_6_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 7 Motion Threshold"
+    id: gate_7_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(7, id(gate_7_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 8 Motion Threshold"
+    id: gate_8_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(8, id(gate_8_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 9 Motion Threshold"
+    id: gate_9_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(9, id(gate_9_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 10 Motion Threshold"
+    id: gate_10_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(10, id(gate_10_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 11 Motion Threshold"
+    id: gate_11_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(11, id(gate_11_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 12 Motion Threshold"
+    id: gate_12_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(12, id(gate_12_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 13 Motion Threshold"
+    id: gate_13_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(13, id(gate_13_motion_threshold).state);
+          
+  - platform: template
+    name: "Gate 14 Motion Threshold"
+    id: gate_14_motion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 45.0
+    icon: "mdi:radar"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_motion_threshold(14, id(gate_14_motion_threshold).state);
+  
+  # Micromotion threshold sliders for gates
+  - platform: template
+    name: "Gate 0 Micromotion Threshold"
+    id: gate_0_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(0, id(gate_0_micromotion_threshold).state);
+  
+  - platform: template
+    name: "Gate 1 Micromotion Threshold"
+    id: gate_1_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(1, id(gate_1_micromotion_threshold).state);
+  
+  - platform: template
+    name: "Gate 2 Micromotion Threshold"
+    id: gate_2_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(2, id(gate_2_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 3 Micromotion Threshold"
+    id: gate_3_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(3, id(gate_3_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 4 Micromotion Threshold"
+    id: gate_4_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(4, id(gate_4_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 5 Micromotion Threshold"
+    id: gate_5_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(5, id(gate_5_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 6 Micromotion Threshold"
+    id: gate_6_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(6, id(gate_6_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 7 Micromotion Threshold"
+    id: gate_7_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(7, id(gate_7_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 8 Micromotion Threshold"
+    id: gate_8_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(8, id(gate_8_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 9 Micromotion Threshold"
+    id: gate_9_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(9, id(gate_9_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 10 Micromotion Threshold"
+    id: gate_10_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(10, id(gate_10_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 11 Micromotion Threshold"
+    id: gate_11_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(11, id(gate_11_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 12 Micromotion Threshold"
+    id: gate_12_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(12, id(gate_12_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 13 Micromotion Threshold"
+    id: gate_13_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(13, id(gate_13_micromotion_threshold).state);
+          
+  - platform: template
+    name: "Gate 14 Micromotion Threshold"
+    id: gate_14_micromotion_threshold
+    optimistic: true
+    min_value: 0.0
+    max_value: 95.0
+    step: 1.0
+    initial_value: 40.0
+    icon: "mdi:hand-wave"
+    unit_of_measurement: "dB"
+    on_value:
+      - lambda: |-
+          id(radar_sensor).set_gate_micromotion_threshold(14, id(gate_14_micromotion_threshold).state);
 
 # Add status LED if available
 status_led:
