@@ -628,20 +628,56 @@ button:
             id(micromotion_coefficient).state
           );
 
-  # NEW: Buttons to read threshold values
+  # Updated buttons to read thresholds AND update sliders
   - platform: template
     name: "Read Motion Thresholds"
     icon: "mdi:refresh"
     entity_category: diagnostic
     on_press:
-      - lambda: id(radar_sensor).read_motion_thresholds();
+      - lambda: |-
+          id(radar_sensor).read_motion_thresholds();
+          delay(500); // Wait for values to be updated
+          // Update all slider positions
+          id(gate_00_motion_threshold).publish_state(id(radar_motion_threshold_00).state);
+          id(gate_01_motion_threshold).publish_state(id(radar_motion_threshold_01).state);
+          id(gate_02_motion_threshold).publish_state(id(radar_motion_threshold_02).state);
+          id(gate_03_motion_threshold).publish_state(id(radar_motion_threshold_03).state);
+          id(gate_04_motion_threshold).publish_state(id(radar_motion_threshold_04).state);
+          id(gate_05_motion_threshold).publish_state(id(radar_motion_threshold_05).state);
+          id(gate_06_motion_threshold).publish_state(id(radar_motion_threshold_06).state);
+          id(gate_07_motion_threshold).publish_state(id(radar_motion_threshold_07).state);
+          id(gate_08_motion_threshold).publish_state(id(radar_motion_threshold_08).state);
+          id(gate_09_motion_threshold).publish_state(id(radar_motion_threshold_09).state);
+          id(gate_10_motion_threshold).publish_state(id(radar_motion_threshold_10).state);
+          id(gate_11_motion_threshold).publish_state(id(radar_motion_threshold_11).state);
+          id(gate_12_motion_threshold).publish_state(id(radar_motion_threshold_12).state);
+          id(gate_13_motion_threshold).publish_state(id(radar_motion_threshold_13).state);
+          id(gate_14_motion_threshold).publish_state(id(radar_motion_threshold_14).state);
       
   - platform: template
     name: "Read Micromotion Thresholds"
     icon: "mdi:refresh"
     entity_category: diagnostic
     on_press:
-      - lambda: id(radar_sensor).read_micromotion_thresholds();
+      - lambda: |-
+          id(radar_sensor).read_micromotion_thresholds();
+          delay(500); // Wait for values to be updated
+          // Update all slider positions
+          id(gate_00_micromotion_threshold).publish_state(id(radar_micromotion_threshold_00).state);
+          id(gate_01_micromotion_threshold).publish_state(id(radar_micromotion_threshold_01).state);
+          id(gate_02_micromotion_threshold).publish_state(id(radar_micromotion_threshold_02).state);
+          id(gate_03_micromotion_threshold).publish_state(id(radar_micromotion_threshold_03).state);
+          id(gate_04_micromotion_threshold).publish_state(id(radar_micromotion_threshold_04).state);
+          id(gate_05_micromotion_threshold).publish_state(id(radar_micromotion_threshold_05).state);
+          id(gate_06_micromotion_threshold).publish_state(id(radar_micromotion_threshold_06).state);
+          id(gate_07_micromotion_threshold).publish_state(id(radar_micromotion_threshold_07).state);
+          id(gate_08_micromotion_threshold).publish_state(id(radar_micromotion_threshold_08).state);
+          id(gate_09_micromotion_threshold).publish_state(id(radar_micromotion_threshold_09).state);
+          id(gate_10_micromotion_threshold).publish_state(id(radar_micromotion_threshold_10).state);
+          id(gate_11_micromotion_threshold).publish_state(id(radar_micromotion_threshold_11).state);
+          id(gate_12_micromotion_threshold).publish_state(id(radar_micromotion_threshold_12).state);
+          id(gate_13_micromotion_threshold).publish_state(id(radar_micromotion_threshold_13).state);
+          id(gate_14_micromotion_threshold).publish_state(id(radar_micromotion_threshold_14).state);
 
 # Add sliders for calibration coefficients and gate thresholds - all sliders must be in number section
 number:
@@ -1102,250 +1138,6 @@ number:
     on_value:
       - lambda: |-
           id(radar_sensor).set_gate_micromotion_threshold(14, id(gate_14_micromotion_threshold).state);
-
-# Add automations to sync sliders with sensor values
-automation:
-  # Motion threshold automations
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_00
-    then:
-      - number.set:
-          id: gate_00_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_00).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_01
-    then:
-      - number.set:
-          id: gate_01_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_01).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_02
-    then:
-      - number.set:
-          id: gate_02_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_02).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_03
-    then:
-      - number.set:
-          id: gate_03_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_03).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_04
-    then:
-      - number.set:
-          id: gate_04_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_04).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_05
-    then:
-      - number.set:
-          id: gate_05_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_05).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_06
-    then:
-      - number.set:
-          id: gate_06_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_06).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_07
-    then:
-      - number.set:
-          id: gate_07_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_07).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_08
-    then:
-      - number.set:
-          id: gate_08_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_08).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_09
-    then:
-      - number.set:
-          id: gate_09_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_09).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_10
-    then:
-      - number.set:
-          id: gate_10_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_10).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_11
-    then:
-      - number.set:
-          id: gate_11_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_11).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_12
-    then:
-      - number.set:
-          id: gate_12_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_12).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_13
-    then:
-      - number.set:
-          id: gate_13_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_13).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_motion_threshold_14
-    then:
-      - number.set:
-          id: gate_14_motion_threshold
-          value: !lambda 'return id(radar_motion_threshold_14).state;'
-          
-  # Micromotion threshold automations
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_00
-    then:
-      - number.set:
-          id: gate_00_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_00).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_01
-    then:
-      - number.set:
-          id: gate_01_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_01).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_02
-    then:
-      - number.set:
-          id: gate_02_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_02).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_03
-    then:
-      - number.set:
-          id: gate_03_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_03).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_04
-    then:
-      - number.set:
-          id: gate_04_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_04).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_05
-    then:
-      - number.set:
-          id: gate_05_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_05).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_06
-    then:
-      - number.set:
-          id: gate_06_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_06).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_07
-    then:
-      - number.set:
-          id: gate_07_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_07).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_08
-    then:
-      - number.set:
-          id: gate_08_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_08).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_09
-    then:
-      - number.set:
-          id: gate_09_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_09).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_10
-    then:
-      - number.set:
-          id: gate_10_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_10).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_11
-    then:
-      - number.set:
-          id: gate_11_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_11).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_12
-    then:
-      - number.set:
-          id: gate_12_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_12).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_13
-    then:
-      - number.set:
-          id: gate_13_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_13).state;'
-          
-  - trigger:
-      platform: state
-      entity_id: sensor.radar_micromotion_threshold_14
-    then:
-      - number.set:
-          id: gate_14_micromotion_threshold
-          value: !lambda 'return id(radar_micromotion_threshold_14).state;'
 
 # Add status LED if available
 status_led:
