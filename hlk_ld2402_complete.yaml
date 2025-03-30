@@ -51,7 +51,7 @@ sensor:
     device_class: distance
     unit_of_measurement: "cm"
     accuracy_decimals: 1
-    throttle: 2000ms  # Use direct parameter for throttling
+    throttle: 2000ms  # 2 second throttle directly in the component
     
   # Calibration progress sensor
   - platform: hlk_ld2402
