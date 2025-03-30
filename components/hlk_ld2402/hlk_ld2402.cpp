@@ -695,6 +695,7 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
   }
   
   // Make sure we're in engineering mode
+  // NOTE: Changed this to be more permissive - removed strict config_mode check
   if (operating_mode_ != "Engineering") {
     ESP_LOGW(TAG, "Received engineering data frame but not in engineering mode! Current mode: %s", 
             operating_mode_.c_str());
@@ -715,37 +716,15 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
   }
   ESP_LOGI(TAG, "Engineering frame received: %s", hex_buf);
   
-  // Parse the engineering data format
-  // As per manual section 5.6.2:
-  // Format: F4 F3 F2 F1 84 [Length 2B] [DetectionStatus 1B] [Distance 2B] [GateData 128B] F8 F7 F6 F5
-  
   // Verify frame type is engineering data (0x84)
   if (frame_data.size() >= 5 && frame_data[4] != DATA_FRAME_TYPE_ENGINEERING) {
     ESP_LOGW(TAG, "Not an engineering data frame: 0x%02X", frame_data[4]);
     return false;
   }
 
-  // Extract detection status if available (byte 7 after header)
-  uint8_t detection_status = 0;
-  if (frame_data.size() >= 8) {
-    detection_status = frame_data[7];
-    const char* status_text = "unknown";
-    switch(detection_status) {
-      case 0: status_text = "no person"; break;
-      case 1: status_text = "person"; break;
-      case 2: status_text = "stationary person"; break;
-    }
-    ESP_LOGD(TAG, "Engineering frame detection status: %s (%d)", status_text, detection_status);
-  }
-
-  // Engineering data includes motion energy and micromotion energy for each gate
-  // Motion energy starts at byte 10 (each value is 4 bytes)
-  // Micromotion energy starts at byte 10 + (32*4) = byte 138
-
   // Process each gate's energy value
-  // We're focusing only on motion energy for now, could add micromotion later
   const size_t motion_energy_start = 10;
-  const size_t motion_gate_count = DEFAULT_GATES; // Using 14 gates as determined earlier
+  const size_t motion_gate_count = DEFAULT_GATES; // Use 14 gates as determined earlier
   
   for (uint8_t i = 0; i < motion_gate_count; i++) {
     size_t offset = motion_energy_start + (i * 4);
@@ -774,12 +753,10 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
     
     // Update sensor if configured for this gate
     if (i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
-      // Publish either raw value or dB value based on preference
-      // For now using dB value which is more intuitive
       energy_gate_sensors_[i]->publish_state(db_energy);
       
-      // Log with more context at DEBUG level
-      ESP_LOGD(TAG, "Gate %d (%.1f-%.1f m) energy: %.1f dB (raw: %u)", 
+      // Always log gate data at debug level to track what we're receiving
+      ESP_LOGI(TAG, "Gate %d (%.1f-%.1f m) energy: %.1f dB (raw: %u)", 
               i, gate_start_distance, gate_end_distance, db_energy, raw_energy);
     }
   }
@@ -1169,13 +1146,13 @@ void HLKLD2402Component::set_engineering_mode() {
     delay(200);
   }
   
-  // Then enter config mode fresh
+  // Enter config mode
   if (!enter_config_mode_()) {
     ESP_LOGE(TAG, "Failed to enter config mode for engineering mode");
     return;
   }
   
-  // Based on the documentation, make a clean set of commands:
+  // Based on the device's actual behavior seen in serial capture:
   // 1. Clear any pending data
   flush();
   while (available()) {
@@ -1228,44 +1205,30 @@ void HLKLD2402Component::set_engineering_mode() {
   }
   
   if (success) {
+    // Important difference from previous implementation:
+    // FIRST set the operating mode, so we correctly identify frames
     operating_mode_ = "Engineering";
     publish_operating_mode_();
     
-    // 5. Important: DO NOT exit config mode - documentation indicates we must
-    // remain in config mode for engineering data to be sent
-    ESP_LOGI(TAG, "Entering engineering data monitoring mode. Remaining in config mode.");
-    config_mode_ = true;
+    // Enable receiving engineering data
+    engineering_data_enabled_ = true;
     
-    // ADDED: Try to send an additional command to trigger data streaming
-    // This is a guess based on documentation behavior - send a "read parameter" command
-    // which might help kickstart the data flow
-    ESP_LOGI(TAG, "Sending additional commands to trigger data streaming...");
+    // CRITICAL CORRECTION: From sniffed data, we see that we MUST exit config mode
+    // for the device to start sending data frames!
+    ESP_LOGI(TAG, "Exiting config mode to begin receiving engineering data frames");
     
-    // Try reading parameter 0x0001 (max distance) which should be harmless
-    uint8_t param_data[2];
-    param_data[0] = 0x01;  // Parameter ID 0x0001 (max distance)
-    param_data[1] = 0x00;
+    // Now exit config mode as seen in the official software's behavior
+    exit_config_mode_();
     
-    if (send_command_(CMD_GET_PARAMS, param_data, sizeof(param_data))) {
-      delay(100);
-      std::vector<uint8_t> trigger_response;
-      read_response_(trigger_response, 500);
-      ESP_LOGI(TAG, "Sent trigger command");
-    }
+    // Small delay
+    delay(300);
     
-    // 6. Add a delay to give the device time to start sending engineering data
-    delay(500);
-    
-    // 7. Clear any pending data again before receiving engineering frames
+    // 5. Clear any pending data again before receiving engineering frames
     flush();
     while (available()) {
       uint8_t c;
       read_byte(&c);
     }
-    
-    // Enable receiving engineering data AFTER cleaning up
-    engineering_data_enabled_ = true;
-    ESP_LOGI(TAG, "Engineering mode activated and data reception enabled. Waiting for data frames...");
     
     // List all configured energy gate sensors
     ESP_LOGI(TAG, "Configured energy gate sensors (%d):", energy_gate_sensors_.size());
@@ -1275,22 +1238,7 @@ void HLKLD2402Component::set_engineering_mode() {
       }
     }
     
-    // ADDED: Send additional commands to start data flow
-    // Try a few different commands to see if any trigger data streaming
-    delay(100);
-    ESP_LOGI(TAG, "Sending additional trigger commands...");
-    
-    // Option 1: Try sending a dummy parameter write (but don't actually change anything)
-    // Read max distance first
-    uint32_t max_dist_value = 50;  // Default to 5.0m if read fails
-    if (get_parameter_(PARAM_MAX_DISTANCE, max_dist_value)) {
-      // Now write back the same value
-      set_parameter_(PARAM_MAX_DISTANCE, max_dist_value);
-    }
-    
-    // Option 2: Send a no-op command that might trigger frame output
-    send_command_(CMD_GET_VERSION);
-    delay(100);
+    ESP_LOGI(TAG, "Engineering mode activated - module should now send binary data frames");
   } else {
     ESP_LOGE(TAG, "Engineering mode command failed: Unexpected response");
     exit_config_mode_();
