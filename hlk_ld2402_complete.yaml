@@ -631,6 +631,7 @@ button:
   # Updated buttons to read thresholds AND update sliders
   - platform: template
     name: "Read Motion Thresholds"
+    id: read_motion_thresholds  # Add this ID for referencing in on_boot
     icon: "mdi:refresh"
     entity_category: diagnostic
     on_press:
@@ -656,6 +657,7 @@ button:
       
   - platform: template
     name: "Read Micromotion Thresholds"
+    id: read_micromotion_thresholds  # Add this ID for referencing in on_boot
     icon: "mdi:refresh"
     entity_category: diagnostic
     on_press:
