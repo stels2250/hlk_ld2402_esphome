@@ -194,6 +194,7 @@ protected:
   bool parse_data_frame_(const std::vector<uint8_t> &frame_data);
   bool process_distance_frame_(const std::vector<uint8_t> &frame_data);
   bool process_engineering_data_(const std::vector<uint8_t> &frame_data);
+  bool process_engineering_from_distance_frame_(const std::vector<uint8_t> &frame_data); // New method
   void update_binary_sensors_(float distance_cm);  // New helper method
 
   // Batch parameter reading method

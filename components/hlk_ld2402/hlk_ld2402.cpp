@@ -623,13 +623,13 @@ void HLKLD2402Component::loop() {
 
 // Add new method to parse distance data frames
 bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &frame_data) {
-  // IMPORTANT FIX: Immediately ignore distance frames when in engineering mode
-  // This prevents misinterpreting engineering data as distance values
+  // Modified approach: If in engineering mode, process as engineering data rather than ignoring
   if (operating_mode_ == "Engineering") {
-    ESP_LOGD(TAG, "Ignoring distance frame while in engineering mode");
-    return false;
+    ESP_LOGI(TAG, "Processing distance frame (0x83) as engineering data while in engineering mode");
+    return process_engineering_from_distance_frame_(frame_data);
   }
   
+  // Regular distance frame processing for normal mode
   // Ensure the frame is at least the minimum expected length
   if (frame_data.size() < 10) {
     ESP_LOGW(TAG, "Distance frame too short: %d bytes", frame_data.size());
@@ -725,6 +725,82 @@ bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &fra
   }
   
   return false;  // No valid distance found
+}
+
+// Add new method to process engineering data from 0x83 frames
+bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vector<uint8_t> &frame_data) {
+  // Early exit if engineering data processing is not enabled
+  if (!engineering_data_enabled_) {
+    ESP_LOGD(TAG, "Engineering data processing disabled");
+    return false;
+  }
+  
+  if (energy_gate_sensors_.empty()) {
+    ESP_LOGD(TAG, "No energy gate sensors configured");
+    return false;
+  }
+  
+  // Ensure the frame is at least the minimum expected length
+  // Header (5) + Length (2) + Some data
+  if (frame_data.size() < 10) {
+    ESP_LOGW(TAG, "Engineering frame too short: %d bytes", frame_data.size());
+    return false;
+  }
+  
+  // Log the full frame in hex for debugging
+  char hex_buf[256] = {0};
+  for (size_t i = 0; i < std::min(frame_data.size(), size_t(50)); i++) {
+    sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
+  }
+  ESP_LOGI(TAG, "Processing 0x83 frame as engineering data: %s", hex_buf);
+  
+  // For 0x83 frames in engineering mode, the energy values start at byte 13
+  const size_t motion_energy_start = 13;  // Different offset than pure engineering frames
+  const size_t motion_gate_count = DEFAULT_GATES; // Use 14 gates as determined earlier
+  
+  // Ensure we have enough data
+  if (frame_data.size() < motion_energy_start + 4) {
+    ESP_LOGW(TAG, "Frame too short for energy data");
+    return false;
+  }
+  
+  // Process each gate's energy value
+  for (uint8_t i = 0; i < motion_gate_count; i++) {
+    size_t offset = motion_energy_start + (i * 4);
+    
+    // Make sure we have enough data for this gate
+    if (offset + 3 >= frame_data.size()) {
+      ESP_LOGW(TAG, "Engineering frame truncated at gate %d", i);
+      break;
+    }
+    
+    // Extract 32-bit energy value (little-endian)
+    uint32_t raw_energy = frame_data[offset] | 
+                        (frame_data[offset+1] << 8) | 
+                        (frame_data[offset+2] << 16) | 
+                        (frame_data[offset+3] << 24);
+    
+    // Convert raw energy to dB as per manual: dB = 10 * log10(raw_value)
+    float db_energy = 0;
+    if (raw_energy > 0) { // Avoid log10(0)
+      db_energy = 10.0f * log10f(raw_energy);
+    }
+    
+    // Calculate approximate distance for this gate
+    float gate_start_distance = i * DISTANCE_GATE_SIZE;
+    float gate_end_distance = gate_start_distance + DISTANCE_GATE_SIZE;
+    
+    // Update sensor if configured for this gate
+    if (i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
+      energy_gate_sensors_[i]->publish_state(db_energy);
+      
+      // Always log gate data to track what we're receiving
+      ESP_LOGI(TAG, "Gate %d (%.1f-%.1f m) energy: %.1f dB (raw: %u)", 
+              i, gate_start_distance, gate_end_distance, db_energy, raw_energy);
+    }
+  }
+  
+  return true;
 }
 
 // Add new method to process engineering data
