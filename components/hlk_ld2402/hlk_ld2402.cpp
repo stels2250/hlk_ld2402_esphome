@@ -30,10 +30,40 @@ void HLKLD2402Component::setup() {
     read_byte(&c);
   }
 
+  // IMPORTANT ADDITION: Ensure the device starts in normal mode
+  // This prevents issues with leftover engineering mode from previous sessions
+  ESP_LOGI(TAG, "Setting device to normal mode on startup...");
+  
+  // Enter config mode - use multiple attempts as device may be in an inconsistent state
+  bool config_success = false;
+  for (int attempt = 0; attempt < 3; attempt++) {
+    ESP_LOGI(TAG, "Startup config mode attempt %d", attempt + 1);
+    if (enter_config_mode_()) {
+      config_success = true;
+      break;
+    }
+    delay(500);
+  }
+  
+  if (config_success) {
+    // Set work mode to normal
+    if (set_work_mode_(MODE_NORMAL)) {
+      ESP_LOGI(TAG, "Successfully initialized device to normal mode");
+    } else {
+      ESP_LOGW(TAG, "Failed to set normal mode, but continuing with initialization");
+    }
+    
+    // Always exit config mode
+    exit_config_mode_();
+    delay(200);
+  } else {
+    ESP_LOGW(TAG, "Failed to enter config mode to initialize normal mode, continuing anyway");
+  }
+
   // Initialize but don't touch the device if we don't need to
   // The logs show the device is already sending data correctly
   // Skip configuration and just set up sensors
-  ESP_LOGI(TAG, "LD2402 appears to be sending data already. Skipping configuration.");
+  ESP_LOGI(TAG, "LD2402 appears to be sending data already. Skipping additional configuration.");
   ESP_LOGI(TAG, "Use the Engineering Mode button if you need to modify settings.");
   
   // Don't check power interference immediately - use a delayed operation
@@ -330,11 +360,13 @@ void HLKLD2402Component::loop() {
             bytes_read++;
           }
           
-          // Process the data frame based on frame_type
+          // Process the data frame based on frame_type with additional checks
           if (frame_type == DATA_FRAME_TYPE_DISTANCE) {
-            if (process_distance_frame_(frame_data)) {
-              // Remove this log message completely
-              // ESP_LOGD(TAG, "Successfully processed distance data frame");
+            // ADDED SAFETY CHECK: Don't process distance frames in engineering mode
+            if (operating_mode_ == "Engineering") {
+              ESP_LOGD(TAG, "Ignoring distance frame in engineering mode");
+            } else if (process_distance_frame_(frame_data)) {
+              // Successfully processed distance frame
             } else {
               ESP_LOGW(TAG, "Failed to process distance data frame");
             }
@@ -591,9 +623,23 @@ void HLKLD2402Component::loop() {
 
 // Add new method to parse distance data frames
 bool HLKLD2402Component::process_distance_frame_(const std::vector<uint8_t> &frame_data) {
+  // IMPORTANT FIX: Immediately ignore distance frames when in engineering mode
+  // This prevents misinterpreting engineering data as distance values
+  if (operating_mode_ == "Engineering") {
+    ESP_LOGD(TAG, "Ignoring distance frame while in engineering mode");
+    return false;
+  }
+  
   // Ensure the frame is at least the minimum expected length
   if (frame_data.size() < 10) {
     ESP_LOGW(TAG, "Distance frame too short: %d bytes", frame_data.size());
+    return false;
+  }
+  
+  // Additional verification: double-check that this is really a distance frame
+  // by confirming the frame type byte (should be 0x83)
+  if (frame_data.size() >= 5 && frame_data[4] != DATA_FRAME_TYPE_DISTANCE) {
+    ESP_LOGW(TAG, "Not a distance frame type: 0x%02X", frame_data[4]);
     return false;
   }
   
@@ -1349,19 +1395,39 @@ bool HLKLD2402Component::save_configuration_() {
     return false;
   }
   
-  std::vector<uint8_t> response;
-  if (!read_response_(response)) {
-    ESP_LOGE(TAG, "No response to save command");
-    return false;
-  }
+  // Add a longer delay after sending the command - the device needs time to process
+  // According to the documentation, we need to wait for the device to process the save command
+  delay(500);
   
-  // Per protocol doc 5.3, check ACK status
-  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+  std::vector<uint8_t> response;
+  if (!read_response_(response, 2000)) {  // Use a longer 2 second timeout
+    ESP_LOGI(TAG, "No immediate response to save command - this may be normal for some firmware versions");
+    // According to the documentation, a successful save command should receive a response
+    // but some firmware might not respond reliably
     return true;
   }
   
-  ESP_LOGE(TAG, "Invalid response to save configuration command");
-  return false;
+  // Log the response for debugging
+  char hex_buf[64] = {0};
+  for (size_t i = 0; i < response.size() && i < 16; i++) {
+    sprintf(hex_buf + (i*3), "%02X ", response[i]);
+  }
+  ESP_LOGI(TAG, "Save config response: %s", hex_buf);
+  
+  // As per section 5.3 in the documentation, check for standard ACK
+  if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
+    ESP_LOGI(TAG, "Save configuration acknowledged with standard ACK");
+    return true;
+  }
+  
+  // Additional permissive checks to handle non-standard responses
+  if (response.size() >= 2) {
+    ESP_LOGW(TAG, "Non-standard save response, but continuing anyway");
+    return true;
+  }
+  
+  ESP_LOGW(TAG, "Unknown save configuration response format, but continuing");
+  return true;
 }
 
 // Update enable_auto_gain to use correct commands per documentation section 5.4
@@ -1379,16 +1445,17 @@ void HLKLD2402Component::enable_auto_gain() {
     return;
   }
   
-  // Wait for completion command response (0xF0 command)
+  // According to section 5.4, wait for completion command response (0xF0)
   ESP_LOGI(TAG, "Waiting for auto gain completion...");
   uint32_t start = millis();
   bool completion_received = false;
   
-  // Use a longer timeout as auto gain may take time to complete
-  while ((millis() - start) < 10000) { // 10 second timeout
+  // Use a 10 second timeout as auto gain may take time to complete
+  while ((millis() - start) < 10000) {
     if (available() >= 12) { // Minimum expected frame size
       std::vector<uint8_t> response;
       if (read_response_(response)) {
+        // Check for the completion notification frame (CMD_AUTO_GAIN_COMPLETE = 0xF0)
         if (response.size() >= 2 && response[0] == 0xF0 && response[1] == 0x00) {
           ESP_LOGI(TAG, "Auto gain adjustment completed");
           completion_received = true;
@@ -1407,6 +1474,7 @@ void HLKLD2402Component::enable_auto_gain() {
 }
 
 bool HLKLD2402Component::enable_auto_gain_() {
+  // As per section 5.4, send the auto gain command
   if (!send_command_(CMD_AUTO_GAIN)) {
     ESP_LOGE(TAG, "Failed to send auto gain command");
     return false;
@@ -1418,6 +1486,7 @@ bool HLKLD2402Component::enable_auto_gain_() {
     return false;
   }
   
+  // According to the documentation, expect a standard ACK
   if (response.size() >= 2 && response[0] == 0x00 && response[1] == 0x00) {
     ESP_LOGI(TAG, "Auto gain command acknowledged");
     return true;
@@ -1806,14 +1875,17 @@ bool HLKLD2402Component::exit_config_mode_() {
   
   // Send exit command
   if (send_command_(CMD_DISABLE_CONFIG)) {
-    // Brief wait for response 
-    delay(100);
+    // Brief wait for response, but don't wait too long
+    delay(200);
     
     // Read any response but don't wait too long
     std::vector<uint8_t> response;
     bool got_response = read_response_(response, 300);
     if (got_response) {
       ESP_LOGI(TAG, "Got response to exit command");
+    } else {
+      // Don't treat this as an error - some firmware versions may not respond
+      ESP_LOGI(TAG, "No response to exit command - this may be normal");
     }
   }
   

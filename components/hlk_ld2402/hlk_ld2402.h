@@ -19,31 +19,33 @@ static const uint8_t DATA_FRAME_TYPE_DISTANCE = 0x83; // Distance data frame typ
 static const uint8_t DATA_FRAME_TYPE_ENGINEERING = 0x84; // Engineering data frame type
 
 // Commands
-static const uint16_t CMD_GET_VERSION = 0x0000;  // Changed from 0x0001 to 0x0000
-static const uint16_t CMD_ENABLE_CONFIG = 0x00FF;
-static const uint16_t CMD_DISABLE_CONFIG = 0x00FE;
-static const uint16_t CMD_GET_SN_HEX = 0x0016;   // Added - read SN in hex format
-static const uint16_t CMD_GET_SN_CHAR = 0x0011;  // Added - read SN in character format
-static const uint16_t CMD_GET_PARAMS = 0x0008;   // Changed from 0x0003
-static const uint16_t CMD_SET_PARAMS = 0x0007;   // Changed from 0x0002
-static const uint16_t CMD_SET_MODE = 0x0012;     // Changed from 0x0004
-static const uint16_t CMD_SAVE_PARAMS = 0x00FD;  // Changed from 0x0005
-static const uint16_t CMD_START_CALIBRATION = 0x0009;  // Changed from 0x000A
-static const uint16_t CMD_GET_CALIBRATION_STATUS = 0x000A;  // Changed from 0x000B
-static const uint16_t CMD_AUTO_GAIN = 0x00EE;    // Changed from 0x000C
-static const uint16_t CMD_AUTO_GAIN_COMPLETE = 0x00F0; // Added - auto gain completion notice
+static const uint16_t CMD_GET_VERSION = 0x0000;  // Read firmware version command
+static const uint16_t CMD_ENABLE_CONFIG = 0x00FF;  // Enable configuration mode
+static const uint16_t CMD_DISABLE_CONFIG = 0x00FE;  // End configuration mode
+static const uint16_t CMD_GET_SN_HEX = 0x0016;  // Read SN (hex format)
+static const uint16_t CMD_GET_SN_CHAR = 0x0011;  // Read SN (character format)
+static const uint16_t CMD_GET_PARAMS = 0x0008;  // Read parameters
+static const uint16_t CMD_SET_PARAMS = 0x0007;  // Set parameters
+static const uint16_t CMD_SET_MODE = 0x0012;  // Set data output mode
+static const uint16_t CMD_START_CALIBRATION = 0x0009;  // Start automatic threshold generation
+static const uint16_t CMD_GET_CALIBRATION_STATUS = 0x000A;  // Query calibration progress
+static const uint16_t CMD_CALIBRATION_INTERFERENCE = 0x0014;  // Report calibration interference
+static const uint16_t CMD_SAVE_PARAMS = 0x00FD;  // Save parameters to flash
+static const uint16_t CMD_AUTO_GAIN = 0x00EE;  // Auto gain adjustment
+static const uint16_t CMD_AUTO_GAIN_COMPLETE = 0x00F0;  // Auto gain completion notification
 
 // Parameters
-static const uint16_t PARAM_MAX_DISTANCE = 0x0001;
-static const uint16_t PARAM_TIMEOUT = 0x0004;
+static const uint16_t PARAM_MAX_DISTANCE = 0x0001;  // Max detection distance
+static const uint16_t PARAM_TIMEOUT = 0x0004;  // Target disappearance delay
+static const uint16_t PARAM_POWER_INTERFERENCE = 0x0005;  // Power interference status (read-only)
+static const uint16_t PARAM_TRIGGER_THRESHOLD = 0x0010;  // Motion trigger threshold base (0x0010-0x001F)
+static const uint16_t PARAM_MICRO_THRESHOLD = 0x0030;  // Micromotion threshold base (0x0030-0x003F)
 
 // Work modes
-static const uint32_t MODE_NORMAL = 0x00000064;   // Changed from 0x00000000
+static const uint32_t MODE_PRODUCTION = 0x00000064;  // Normal production mode
+static const uint32_t MODE_NORMAL = 0x00000064;  // Alias for production mode
 static const uint32_t MODE_CONFIG = 0x00000001;
-static const uint32_t MODE_ENGINEERING = 0x00000004;  // For testing
-
-// Work modes from manual
-static const uint32_t MODE_PRODUCTION = 0x00000064;   // Normal operation
+static const uint32_t MODE_ENGINEERING = 0x00000004;  // Engineering/debug mode
 
 // Thresholds from manual
 static const uint16_t PARAM_TRIGGER_THRESHOLD = 0x0010;  // Range: 0x0010-0x001F
