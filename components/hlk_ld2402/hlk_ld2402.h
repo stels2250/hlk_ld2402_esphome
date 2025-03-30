@@ -129,10 +129,12 @@ public:
   void check_power_interference();
   void factory_reset();  // Add new factory reset method
   
-  // Change to make this toggle between engineering and normal mode
-  void set_engineering_mode();
+  // Add new direct mode setting methods
+  void set_engineering_mode_direct();
+  void set_normal_mode_direct();
   
-  // Update this to handle full transition to normal mode
+  // Keep existing methods for backward compatibility
+  void set_engineering_mode();
   void set_normal_mode();
   
   void get_serial_number();
@@ -227,6 +229,8 @@ private:
   std::string operating_mode_{"Normal"};  // Track the current operating mode
   uint32_t last_distance_update_{0};   // Time of last distance sensor update
   uint32_t distance_throttle_ms_{2000}; // Default throttle of 2 seconds
+  uint32_t last_engineering_update_{0}; // Time of last engineering data update
+  uint32_t engineering_throttle_ms_{2000}; // Engineering data throttle (2 seconds)
   std::vector<sensor::Sensor *> energy_gate_sensors_; // Store gate sensors
   bool engineering_data_enabled_{false}; // Flag to enable engineering data processing
   

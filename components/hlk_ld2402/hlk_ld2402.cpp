@@ -753,12 +753,18 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
     return false;
   }
   
-  // Log the frame format for debugging - this helps us understand the data structure
-  char hex_buf[256] = {0};
-  for (size_t i = 0; i < std::min(frame_data.size(), size_t(50)); i++) {
-    sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
+  // Check throttling - only log and update sensors if enough time has passed
+  uint32_t now = millis();
+  bool throttled = (now - last_engineering_update_ < engineering_throttle_ms_);
+  
+  if (!throttled) {
+    // Only log the frame when not throttled
+    char hex_buf[256] = {0};
+    for (size_t i = 0; i < std::min(frame_data.size(), size_t(50)); i++) {
+      sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
+    }
+    ESP_LOGI(TAG, "Processing 0x83 frame as engineering data: %s", hex_buf);
   }
-  ESP_LOGI(TAG, "Processing 0x83 frame as engineering data: %s", hex_buf);
   
   // For 0x83 frames in engineering mode, the energy values start at byte 13
   // Energy values are the same values that would be "distance" in normal mode
@@ -798,14 +804,19 @@ bool HLKLD2402Component::process_engineering_from_distance_frame_(const std::vec
     float gate_start_distance = i * DISTANCE_GATE_SIZE;
     float gate_end_distance = gate_start_distance + DISTANCE_GATE_SIZE;
     
-    // Update sensor if configured for this gate
-    if (i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
+    // Update sensor if configured for this gate and not throttled
+    if (!throttled && i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
       energy_gate_sensors_[i]->publish_state(db_energy);
       
-      // Always log gate data at higher level for now to help debug
+      // Only log gate data when not throttled
       ESP_LOGI(TAG, "Gate %d (%.1f-%.1f m) energy: %.1f dB (raw: %u)", 
               i, gate_start_distance, gate_end_distance, db_energy, raw_energy);
     }
+  }
+  
+  // Update the throttle timestamp if we weren't throttled
+  if (!throttled) {
+    last_engineering_update_ = now;
   }
   
   return true;
@@ -839,12 +850,18 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
     return false;
   }
   
-  // Always log engineering frames at INFO level for debugging
-  char hex_buf[128] = {0};
-  for (size_t i = 0; std::min(frame_data.size(), size_t(40)); i++) {
-    sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
+  // Check throttling - only log and update sensors if enough time has passed
+  uint32_t now = millis();
+  bool throttled = (now - last_engineering_update_ < engineering_throttle_ms_);
+  
+  if (!throttled) {
+    // Only log the frame when not throttled
+    char hex_buf[128] = {0};
+    for (size_t i = 0; std::min(frame_data.size(), size_t(40)); i++) {
+      sprintf(hex_buf + (i*3), "%02X ", frame_data[i]);
+    }
+    ESP_LOGI(TAG, "Engineering frame received: %s", hex_buf);
   }
-  ESP_LOGI(TAG, "Engineering frame received: %s", hex_buf);
   
   // Verify frame type is engineering data (0x84)
   if (frame_data.size() >= 5 && frame_data[4] != DATA_FRAME_TYPE_ENGINEERING) {
@@ -854,7 +871,7 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
 
   // Process each gate's energy value
   const size_t motion_energy_start = 10;
-  const size_t motion_gate_count = DEFAULT_GATES; // Uses 14 gates from the constant
+  const size_t motion_gate_count = DEFAULT_GATES; // Uses DEFAULT_GATES gates from the constant
   
   for (uint8_t i = 0; i < motion_gate_count; i++) {
     size_t offset = motion_energy_start + (i * 4);
@@ -881,14 +898,19 @@ bool HLKLD2402Component::process_engineering_data_(const std::vector<uint8_t> &f
     float gate_start_distance = i * DISTANCE_GATE_SIZE;
     float gate_end_distance = gate_start_distance + DISTANCE_GATE_SIZE;
     
-    // Update sensor if configured for this gate
-    if (i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
+    // Update sensor if configured for this gate and not throttled
+    if (!throttled && i < energy_gate_sensors_.size() && energy_gate_sensors_[i] != nullptr) {
       energy_gate_sensors_[i]->publish_state(db_energy);
       
-      // Always log gate data at debug level to track what we're receiving
+      // Only log gate data when not throttled
       ESP_LOGI(TAG, "Gate %d (%.1f-%.1f m) energy: %.1f dB (raw: %u)", 
               i, gate_start_distance, gate_end_distance, db_energy, raw_energy);
     }
+  }
+  
+  // Update the throttle timestamp if we weren't throttled
+  if (!throttled) {
+    last_engineering_update_ = now;
   }
   
   return true;
@@ -1257,6 +1279,7 @@ bool HLKLD2402Component::set_work_mode_with_timeout_(uint32_t mode, uint32_t tim
   return false;
 }
 
+// Keep the existing set_engineering_mode for backward compatibility (used as toggle)
 void HLKLD2402Component::set_engineering_mode() {
   // Check if we're already in Engineering mode - if so, switch back to normal
   if (operating_mode_ == "Engineering") {
@@ -1265,11 +1288,23 @@ void HLKLD2402Component::set_engineering_mode() {
     return;
   }
   
+  // If not in Engineering mode, call the new direct method
+  set_engineering_mode_direct();
+}
+
+// New method that directly sets engineering mode without toggle behavior
+void HLKLD2402Component::set_engineering_mode_direct() {
+  // Check if already in engineering mode to avoid unnecessary actions
+  if (operating_mode_ == "Engineering") {
+    ESP_LOGI(TAG, "Already in engineering mode. No action needed.");
+    return;
+  }
+  
+  ESP_LOGI(TAG, "Switching to engineering mode...");
+  
   // Disable data processing temporarily to ensure clean state
   engineering_data_enabled_ = false;
 
-  ESP_LOGI(TAG, "Switching to engineering mode...");
-  
   // First ensure we're not in config mode already
   if (config_mode_) {
     exit_config_mode_();
@@ -1375,6 +1410,18 @@ void HLKLD2402Component::set_engineering_mode() {
   }
 }
 
+// New method for directly setting normal mode without toggle logic
+void HLKLD2402Component::set_normal_mode_direct() {
+  // Check if already in normal mode to avoid unnecessary actions
+  if (operating_mode_ == "Normal") {
+    ESP_LOGI(TAG, "Already in normal mode. No action needed.");
+    return;
+  }
+  
+  // Call the existing normal mode setting function
+  set_normal_mode();
+}
+
 void HLKLD2402Component::set_normal_mode() {
   ESP_LOGI(TAG, "Switching to normal mode...");
   
@@ -1404,63 +1451,6 @@ void HLKLD2402Component::set_normal_mode() {
     ESP_LOGE(TAG, "Failed to set normal mode");
     // Still try to exit config mode
     exit_config_mode_();
-  }
-}
-
-// Update calibration to match new command format and improve progress tracking
-void HLKLD2402Component::calibrate() {
-  calibrate_with_coefficients(3.0f, 3.0f, 3.0f);
-}
-
-// Update calibration to match new command format and improve progress tracking
-bool HLKLD2402Component::calibrate_with_coefficients(float trigger_coeff, float hold_coeff, float micromotion_coeff) {
-  ESP_LOGI(TAG, "Starting calibration with custom coefficients...");
-  
-  if (!enter_config_mode_()) {
-    ESP_LOGE(TAG, "Failed to enter config mode");
-    return false;
-  }
-  
-  // Clamp coefficients to valid range (1.0 - 20.0)
-  trigger_coeff = std::max(MIN_COEFF, std::min(MAX_COEFF, trigger_coeff));
-  hold_coeff = std::max(MIN_COEFF, std::min(MAX_COEFF, hold_coeff));
-  micromotion_coeff = std::max(MIN_COEFF, std::min(MAX_COEFF, micromotion_coeff));
-  
-  // According to section 5.2.9, each coefficient is multiplied by 10
-  uint16_t trigger_value = static_cast<uint16_t>(trigger_coeff * 10.0f);
-  uint16_t hold_value = static_cast<uint16_t>(hold_coeff * 10.0f);
-  uint16_t micro_value = static_cast<uint16_t>(micromotion_coeff * 10.0f);
-  
-  // Prepare data according to the protocol: 3 coefficients, each 2 bytes
-  uint8_t data[] = {
-    static_cast<uint8_t>(trigger_value & 0xFF),
-    static_cast<uint8_t>((trigger_value >> 8) & 0xFF),
-    static_cast<uint8_t>(hold_value & 0xFF),
-    static_cast<uint8_t>((hold_value >> 8) & 0xFF),
-    static_cast<uint8_t>(micro_value & 0xFF),
-    static_cast<uint8_t>((micro_value >> 8) & 0xFF)
-  };
-  
-  ESP_LOGI(TAG, "Calibration coefficients - Trigger: %.1f, Hold: %.1f, Micro: %.1f", 
-         trigger_coeff, hold_coeff, micromotion_coeff);
-  
-  if (send_command_(CMD_START_CALIBRATION, data, sizeof(data))) {
-    ESP_LOGI(TAG, "Started calibration with custom coefficients");
-    
-    // Set calibration flags and initialize progress
-    calibration_in_progress_ = true;
-    calibration_progress_ = 0;
-    last_calibration_check_ = millis() - 4000; // Check status almost immediately
-    
-    // Publish initial progress
-    if (this->calibration_progress_sensor_ != nullptr) {
-      this->calibration_progress_sensor_->publish_state(0);
-    }
-    return true;
-  } else {
-    ESP_LOGE(TAG, "Failed to start calibration");
-    exit_config_mode_();
-    return false;
   }
 }
 

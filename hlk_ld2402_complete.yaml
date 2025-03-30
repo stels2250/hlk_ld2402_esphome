@@ -595,11 +595,18 @@ button:
     on_press:
       - lambda: id(radar_sensor).save_config();
 
+  # Replace the toggle button with two separate mode buttons
   - platform: template
-    name: "Engineering Mode Toggle"
-    icon: "mdi:tune"
+    name: "Set Engineering Mode"
+    icon: "mdi:tune-variant"
     on_press:
-      - lambda: id(radar_sensor).set_engineering_mode();
+      - lambda: id(radar_sensor).set_engineering_mode_direct();
+
+  - platform: template
+    name: "Set Normal Mode" 
+    icon: "mdi:tune-variant-off"
+    on_press:
+      - lambda: id(radar_sensor).set_normal_mode_direct();
       
   # Factory reset button with warning icon
   - platform: template
