@@ -1,3 +1,17 @@
+# Add an on_boot trigger to read thresholds and update sliders
+esphome:
+# Your configuration goes here
+  on_boot:
+    priority: -100  # Run after everything else is initialized
+    then:
+      - delay: 10s  # Wait for radar module to fully initialize
+      - logger.log: "Reading thresholds and syncing sliders on boot"
+      - button.press: read_motion_thresholds
+      - delay: 1s
+      - button.press: read_micromotion_thresholds
+
+# More of your configuration goes here
+
 # UART configuration for HLK-LD2402
 uart:
   id: uart_bus
@@ -631,6 +645,7 @@ button:
   # Updated buttons to read thresholds AND update sliders
   - platform: template
     name: "Read Motion Thresholds"
+    id: read_motion_thresholds  # Add this ID for referencing in on_boot
     icon: "mdi:refresh"
     entity_category: diagnostic
     on_press:
@@ -656,6 +671,7 @@ button:
       
   - platform: template
     name: "Read Micromotion Thresholds"
+    id: read_micromotion_thresholds  # Add this ID for referencing in on_boot
     icon: "mdi:refresh"
     entity_category: diagnostic
     on_press:
@@ -1142,15 +1158,3 @@ number:
 # Add status LED if available
 status_led:
   pin: GPIO2
-
-# Add an on_boot trigger to read thresholds and update sliders
-esphome:
-  name: ${name}
-  on_boot:
-    priority: -100  # Run after everything else is initialized
-    then:
-      - delay: 10s  # Wait for radar module to fully initialize
-      - logger.log: "Reading thresholds and syncing sliders on boot"
-      - button.press: read_motion_thresholds
-      - delay: 1s
-      - button.press: read_micromotion_thresholds
