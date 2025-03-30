@@ -10,6 +10,12 @@ Version G - that is, HLK-LD2402G includes an LD which allows this module to run 
 
 This module is the only one i've seen that implements a kind of adjustable calibration, where it will tune the thresholds to a baseline sensitivity. The power interference check is also pretty cool. It does run hot to the touch. 
 
+We'll be using the ESP8266 TX/RX pins for this so don't forget to disable uart logging!
+   ```yaml
+logger:
+  baud_rate: 0
+   ```
+
 ## Table of Contents
 - [Module Overview](#module-overview)
 - [ESPHome Integration Features](#esphome-integration-features)
