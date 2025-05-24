@@ -32,8 +32,8 @@ logger:
 # UART configuration for HLK-LD2402
 uart:
   id: uart_bus
-  tx_pin: GPIO1  # TX0 hardware UART
-  rx_pin: GPIO3  # RX0 hardware UART
+  tx_pin: GPIO20  # TX0 hardware UART
+  rx_pin: GPIO21  # RX0 hardware UART
   baud_rate: 115200
   data_bits: 8
   parity: NONE
@@ -43,7 +43,7 @@ uart:
 external_components:
   - source:
       type: git
-      url: https://github.com/mouldybread/hlk_ld2402_esphome
+      url: https://github.com/stels2250/hlk_ld2402_esphome.git
     refresh: 0ms
 
 hlk_ld2402:
